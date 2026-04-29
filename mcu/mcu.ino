@@ -22,7 +22,8 @@ static const uint32_t STREAM_HZ     = 100;
 float ax_off = 0, ay_off = 0, az_off = 0;
 float gx_off = 0, gy_off = 0, gz_off = 0;
 
-float yaw = 0;
+float roll_filt = 0, pitch_filt = 0, yaw = 0;
+static const float COMP_ALPHA = 0.98f;  // gyro weight; (1-alpha) is accel weight
 uint32_t last_us = 0;
 uint32_t last_stream_ms = 0;
 
@@ -107,9 +108,13 @@ void loop() {
   float dt = (now_us - last_us) * 1e-6f;
   last_us = now_us;
 
-  float roll  = atan2f(ay, az) * 57.29578f;
-  float pitch = atan2f(-ax, sqrtf(ay*ay + az*az)) * 57.29578f;
+  float accel_roll  = atan2f(ay, az) * 57.29578f;
+  float accel_pitch = atan2f(-ax, sqrtf(ay*ay + az*az)) * 57.29578f;
+  roll_filt  = COMP_ALPHA * (roll_filt  + gx * dt) + (1 - COMP_ALPHA) * accel_roll;
+  pitch_filt = COMP_ALPHA * (pitch_filt + gy * dt) + (1 - COMP_ALPHA) * accel_pitch;
   yaw += gz * dt;  // gyro-only — will drift; mag fusion comes later
+  float roll  = roll_filt;
+  float pitch = pitch_filt;
 
   uint32_t now_ms = millis();
   if (now_ms - last_stream_ms >= 1000UL / STREAM_HZ) {

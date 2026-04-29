@@ -109,6 +109,13 @@ def render_text(font, surface, lines, x=10, y=10, color=(230, 230, 230)):
         surface.blit(img, (x, y + i * 18))
 
 
+VIEWS = {
+    pygame.K_1: ("perspective", 20.0),   # tilted 20° from horizontal
+    pygame.K_2: ("top-down",   90.0),    # camera looking straight down +Z
+    pygame.K_3: ("front",       0.0),    # camera at the same height as the body
+}
+
+
 def main():
     port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"
     baud = int(sys.argv[2]) if len(sys.argv) > 2 else 115200
@@ -124,9 +131,6 @@ def main():
     gluPerspective(45, width / height, 0.1, 50.0)
     glMatrixMode(GL_MODELVIEW)
 
-    font = pygame.font.SysFont("monospace", 14, bold=True)
-    text_surface = pygame.Surface((300, 220), pygame.SRCALPHA)
-
     state = ImuState()
     stop = threading.Event()
     reader = threading.Thread(
@@ -134,40 +138,39 @@ def main():
     )
     reader.start()
 
+    view_name, view_tilt = "perspective", 20.0
+
     clock = pygame.time.Clock()
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key in VIEWS:
+                    view_name, view_tilt = VIEWS[event.key]
 
         ax, ay, az, gx, gy, gz, roll, pitch, yaw, t_ms = state.snapshot()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         glTranslatef(0.0, 0.0, -6.0)
-        # Tilt the world a bit so we see the body, not edge-on.
-        glRotatef(20, 1, 0, 0)
+        glRotatef(view_tilt, 1, 0, 0)
         draw_axes()
-        # Apply IMU orientation. Order: yaw (Z) → pitch (Y) → roll (X).
+        # IMU orientation, applied yaw (Z) → pitch (Y) → roll (X).
         glRotatef(yaw, 0, 0, 1)
         glRotatef(pitch, 0, 1, 0)
         glRotatef(roll, 1, 0, 0)
         draw_cube()
-
-        # Overlay text by drawing to a pygame surface — only works in
-        # 2D mode, so we render to a separate window? Pygame OpenGL
-        # backends don't blit easily, so we just print at low rate.
         pygame.display.flip()
-        if pygame.time.get_ticks() % 250 < 20:
-            sys.stdout.write(
-                f"\rt={t_ms:>7d}ms  acc=({ax:+.2f},{ay:+.2f},{az:+.2f})g  "
-                f"gyro=({gx:+7.2f},{gy:+7.2f},{gz:+7.2f})dps  "
-                f"rpy=({roll:+6.1f},{pitch:+6.1f},{yaw:+6.1f})  "
-            )
-            sys.stdout.flush()
+
+        pygame.display.set_caption(
+            f"MPU6050 [{view_name}]  "
+            f"roll={roll:+6.1f}°  pitch={pitch:+6.1f}°  yaw={yaw:+6.1f}°  "
+            f"acc=({ax:+.2f},{ay:+.2f},{az:+.2f})g   [1]persp [2]top [3]front  Esc=quit"
+        )
         clock.tick(60)
 
     stop.set()
