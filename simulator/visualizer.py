@@ -18,9 +18,9 @@ from OpenGL.GL import (
     GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_DEPTH_TEST, GL_LINES,
     GL_MODELVIEW, GL_PROJECTION, GL_QUADS, glBegin, glClear, glClearColor,
     glColor3f, glEnable, glEnd, glLoadIdentity, glMatrixMode, glRotatef,
-    glTranslatef, glVertex3f,
+    glVertex3f,
 )
-from OpenGL.GLU import gluPerspective
+from OpenGL.GLU import gluLookAt, gluPerspective
 
 
 @dataclass
@@ -109,10 +109,13 @@ def render_text(font, surface, lines, x=10, y=10, color=(230, 230, 230)):
         surface.blit(img, (x, y + i * 18))
 
 
+# Each view = (label, eye, up). World frame: X right, Y forward, Z up.
+# Drone is centered at the origin and stays level when IMU reads zero — only
+# the camera moves. center is always (0,0,0).
 VIEWS = {
-    pygame.K_1: ("perspective", 20.0),   # tilted 20° from horizontal
-    pygame.K_2: ("top-down",   90.0),    # camera looking straight down +Z
-    pygame.K_3: ("front",       0.0),    # camera at the same height as the body
+    pygame.K_1: ("perspective", (3.5, -4.5, 3.0), (0, 0, 1)),
+    pygame.K_2: ("top-down",    (0.0,  0.0, 6.0), (0, 1, 0)),
+    pygame.K_3: ("front",       (0.0, -6.0, 0.0), (0, 0, 1)),
 }
 
 
@@ -138,7 +141,7 @@ def main():
     )
     reader.start()
 
-    view_name, view_tilt = "front", 0.0
+    view_name, view_eye, view_up = VIEWS[pygame.K_1]
 
     clock = pygame.time.Clock()
     running = True
@@ -150,14 +153,15 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key in VIEWS:
-                    view_name, view_tilt = VIEWS[event.key]
+                    view_name, view_eye, view_up = VIEWS[event.key]
 
         ax, ay, az, gx, gy, gz, roll, pitch, yaw, t_ms = state.snapshot()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
-        glTranslatef(0.0, 0.0, -6.0)
-        glRotatef(view_tilt, 1, 0, 0)
+        gluLookAt(view_eye[0], view_eye[1], view_eye[2],
+                  0.0, 0.0, 0.0,
+                  view_up[0], view_up[1], view_up[2])
         draw_axes()
         # IMU orientation, applied yaw (Z) → pitch (Y) → roll (X).
         glRotatef(yaw, 0, 0, 1)
