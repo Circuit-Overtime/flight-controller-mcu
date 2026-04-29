@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "name": "Arduino Mega (AVR)",
+      "intelliSenseMode": "linux-gcc-x64",
+      "compilerPath": "${env:HOME}/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${env:HOME}/.arduino15/packages/arduino/hardware/avr/1.8.7/cores/arduino",
+        "${env:HOME}/.arduino15/packages/arduino/hardware/avr/1.8.7/variants/mega",
+        "${env:HOME}/.arduino15/packages/arduino/hardware/avr/1.8.7/libraries/Wire/src",
+        "${env:HOME}/.arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/avr/include"
+      ],
+      "defines": [
+        "F_CPU=16000000L",
+        "ARDUINO=10819",
+        "ARDUINO_AVR_MEGA2560",
+        "ARDUINO_ARCH_AVR",
+        "__AVR_ATmega2560__"
+      ],
+      "forcedInclude": [
+        "${env:HOME}/.arduino15/packages/arduino/hardware/avr/1.8.7/cores/arduino/Arduino.h"
+      ]
+    }
+  ],
+  "version": 4
+}
