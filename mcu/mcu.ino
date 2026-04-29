@@ -1,6 +1,6 @@
 // MPU6050 raw-I2C driver for Arduino Mega.
 // Wiring: VCC->5V, GND->GND, SDA->20, SCL->21, AD0->GND.
-// Streams CSV at 115200: ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,roll,pitch,yaw,t_ms
+// Streams CSV at 115200: ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,roll,pitch,yaw,temp_c,t_ms
 
 #include <Wire.h>
 
@@ -35,19 +35,19 @@ void mpuWrite(uint8_t reg, uint8_t val) {
 }
 
 bool mpuReadRaw(int16_t &ax, int16_t &ay, int16_t &az,
-                int16_t &gx, int16_t &gy, int16_t &gz) {
+                int16_t &gx, int16_t &gy, int16_t &gz, int16_t &temp) {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(REG_ACC_XOUT);
   if (Wire.endTransmission(false) != 0) return false;
   if (Wire.requestFrom((int)MPU_ADDR, 14, (int)true) != 14) return false;
 
-  ax = (Wire.read() << 8) | Wire.read();
-  ay = (Wire.read() << 8) | Wire.read();
-  az = (Wire.read() << 8) | Wire.read();
-  Wire.read(); Wire.read();              // skip temperature
-  gx = (Wire.read() << 8) | Wire.read();
-  gy = (Wire.read() << 8) | Wire.read();
-  gz = (Wire.read() << 8) | Wire.read();
+  ax   = (Wire.read() << 8) | Wire.read();
+  ay   = (Wire.read() << 8) | Wire.read();
+  az   = (Wire.read() << 8) | Wire.read();
+  temp = (Wire.read() << 8) | Wire.read();
+  gx   = (Wire.read() << 8) | Wire.read();
+  gy   = (Wire.read() << 8) | Wire.read();
+  gz   = (Wire.read() << 8) | Wire.read();
   return true;
 }
 
@@ -56,8 +56,8 @@ void calibrate() {
   double sax=0, say=0, saz=0, sgx=0, sgy=0, sgz=0;
   uint16_t got = 0;
   while (got < CALIB_SAMPLES) {
-    int16_t ax, ay, az, gx, gy, gz;
-    if (!mpuReadRaw(ax, ay, az, gx, gy, gz)) continue;
+    int16_t ax, ay, az, gx, gy, gz, temp;
+    if (!mpuReadRaw(ax, ay, az, gx, gy, gz, temp)) continue;
     sax += ax; say += ay; saz += az;
     sgx += gx; sgy += gy; sgz += gz;
     got++;
@@ -90,12 +90,12 @@ void setup() {
 
   calibrate();
   last_us = micros();
-  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,t_ms"));
+  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,t_ms"));
 }
 
 void loop() {
-  int16_t rax, ray, raz, rgx, rgy, rgz;
-  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz)) return;
+  int16_t rax, ray, raz, rgx, rgy, rgz, rtemp;
+  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz, rtemp)) return;
 
   float ax = (rax - ax_off) / ACC_LSB_PER_G;
   float ay = (ray - ay_off) / ACC_LSB_PER_G;
@@ -103,6 +103,7 @@ void loop() {
   float gx = (rgx - gx_off) / GYRO_LSB_PER_DPS;
   float gy = (rgy - gy_off) / GYRO_LSB_PER_DPS;
   float gz = (rgz - gz_off) / GYRO_LSB_PER_DPS;
+  float temp_c = rtemp / 340.0f + 36.53f;  // datasheet §4.18
 
   uint32_t now_us = micros();
   float dt = (now_us - last_us) * 1e-6f;
@@ -128,6 +129,7 @@ void loop() {
     Serial.print(roll, 2);  Serial.print(',');
     Serial.print(pitch, 2); Serial.print(',');
     Serial.print(yaw, 2);   Serial.print(',');
+    Serial.print(temp_c, 2); Serial.print(',');
     Serial.println(now_ms);
   }
 }

@@ -34,12 +34,13 @@ class ImuState:
     roll: float = 0.0
     pitch: float = 0.0
     yaw: float = 0.0
+    temp_c: float = 0.0
     t_ms: int = 0
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def update_from_csv(self, line: str) -> bool:
         parts = line.strip().split(",")
-        if len(parts) != 10:
+        if len(parts) != 11:
             return False
         try:
             vals = [float(p) for p in parts]
@@ -48,7 +49,8 @@ class ImuState:
         with self.lock:
             (self.ax, self.ay, self.az,
              self.gx, self.gy, self.gz,
-             self.roll, self.pitch, self.yaw, t) = vals
+             self.roll, self.pitch, self.yaw,
+             self.temp_c, t) = vals
             self.t_ms = int(t)
         return True
 
@@ -56,7 +58,8 @@ class ImuState:
         with self.lock:
             return (self.ax, self.ay, self.az,
                     self.gx, self.gy, self.gz,
-                    self.roll, self.pitch, self.yaw, self.t_ms)
+                    self.roll, self.pitch, self.yaw,
+                    self.temp_c, self.t_ms)
 
 
 def serial_reader(port: str, baud: int, state: ImuState, stop: threading.Event):
@@ -155,7 +158,7 @@ def main():
                 elif event.key in VIEWS:
                     view_name, view_eye, view_up = VIEWS[event.key]
 
-        ax, ay, az, gx, gy, gz, roll, pitch, yaw, t_ms = state.snapshot()
+        ax, ay, az, gx, gy, gz, roll, pitch, yaw, temp_c, t_ms = state.snapshot()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
@@ -173,7 +176,7 @@ def main():
         pygame.display.set_caption(
             f"MPU6050 [{view_name}]  "
             f"roll={roll:+6.1f}°  pitch={pitch:+6.1f}°  yaw={yaw:+6.1f}°  "
-            f"acc=({ax:+.2f},{ay:+.2f},{az:+.2f})g   [1]persp [2]top [3]front  Esc=quit"
+            f"temp={temp_c:5.1f}°C   [1]persp [2]top [3]front  Esc=quit"
         )
         clock.tick(60)
 
