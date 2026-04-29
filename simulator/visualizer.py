@@ -138,7 +138,7 @@ def main():
     )
     reader.start()
 
-    view_name, view_tilt = "perspective", 20.0
+    view_name, view_tilt = "front", 0.0
 
     clock = pygame.time.Clock()
     running = True
