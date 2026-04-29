@@ -1,8 +1,11 @@
 // MPU6050 raw-I2C driver for Arduino Mega.
 // Wiring: VCC->5V, GND->GND, SDA->20, SCL->21, AD0->GND.
-// Streams CSV at 115200: ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,roll,pitch,yaw,temp_c,t_ms
+// Streams CSV at 115200:
+//   ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,ch1..ch6,t_ms
+// Channels are FS-R6B PWM widths in µs (1000..2000); 0 means no signal.
 
 #include <Wire.h>
+#include "rx.h"
 
 static const uint8_t  MPU_ADDR     = 0x68;
 static const uint8_t  REG_PWR_MGMT = 0x6B;
@@ -88,9 +91,10 @@ void setup() {
   mpuWrite(REG_ACC_CFG,  0x00);   // ±2 g
   delay(50);
 
+  rxInit();
   calibrate();
   last_us = micros();
-  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,t_ms"));
+  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,ch1,ch2,ch3,ch4,ch5,ch6,t_ms"));
 }
 
 void loop() {
@@ -130,6 +134,11 @@ void loop() {
     Serial.print(pitch, 2); Serial.print(',');
     Serial.print(yaw, 2);   Serial.print(',');
     Serial.print(temp_c, 2); Serial.print(',');
+    uint32_t now_us = micros();
+    for (uint8_t ch = 0; ch < 6; ch++) {
+      Serial.print(rxAlive(ch, now_us) ? rxGet(ch) : 0);
+      Serial.print(',');
+    }
     Serial.println(now_ms);
   }
 }
