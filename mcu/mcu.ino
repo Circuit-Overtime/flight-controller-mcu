@@ -30,6 +30,15 @@ static const float COMP_ALPHA = 0.98f;  // gyro weight; (1-alpha) is accel weigh
 uint32_t last_us = 0;
 uint32_t last_stream_ms = 0;
 
+// RX smoothing + center calibration. Centered channels (CH1/CH2/CH4) get a
+// per-channel offset measured at boot so an at-rest stick reads exactly 1500.
+// Throttle (CH3) and switches (CH5/CH6) are not centered, so offset stays 0.
+static const float    RX_ALPHA          = 0.20f;  // EMA: lower = smoother
+static const uint16_t RX_CALIB_SAMPLES  = 400;
+static const bool     RX_IS_CENTERED[6] = { true, true, false, true, false, false };
+float    rx_ema[6]    = {0};
+int16_t  rx_offset[6] = {0};
+
 void mpuWrite(uint8_t reg, uint8_t val) {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(reg);
@@ -52,6 +61,41 @@ bool mpuReadRaw(int16_t &ax, int16_t &ay, int16_t &az,
   gy   = (Wire.read() << 8) | Wire.read();
   gz   = (Wire.read() << 8) | Wire.read();
   return true;
+}
+
+void calibrateRx() {
+  Serial.println(F("# RX calibrate - keep all sticks centered (throttle anywhere)"));
+  // Wait up to 1s for first valid pulses on the centered channels.
+  uint32_t deadline = millis() + 1000;
+  while (millis() < deadline) {
+    bool ready = true;
+    for (uint8_t i = 0; i < 6; i++) {
+      if (RX_IS_CENTERED[i] && rxGet(i) == 0) { ready = false; break; }
+    }
+    if (ready) break;
+    delay(10);
+  }
+  uint32_t sums[6]   = {0};
+  uint16_t counts[6] = {0};
+  for (uint16_t s = 0; s < RX_CALIB_SAMPLES; s++) {
+    for (uint8_t i = 0; i < 6; i++) {
+      uint16_t v = rxGet(i);
+      if (v > 0) { sums[i] += v; counts[i]++; }
+    }
+    delay(5);  // ~2s total
+  }
+  for (uint8_t i = 0; i < 6; i++) {
+    if (RX_IS_CENTERED[i] && counts[i] > 50) {
+      uint16_t mean = (uint16_t)(sums[i] / counts[i]);
+      rx_offset[i] = (int16_t)mean - 1500;
+      rx_ema[i]    = mean;
+    }
+  }
+  Serial.print(F("# rx_offset "));
+  for (uint8_t i = 0; i < 6; i++) {
+    Serial.print(rx_offset[i]); Serial.print(',');
+  }
+  Serial.println();
 }
 
 void calibrate() {
@@ -93,6 +137,7 @@ void setup() {
 
   rxInit();
   calibrate();
+  calibrateRx();
   last_us = micros();
   Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,ch1,ch2,ch3,ch4,ch5,ch6,t_ms"));
 }
@@ -134,13 +179,22 @@ void loop() {
     Serial.print(pitch, 2); Serial.print(',');
     Serial.print(yaw, 2);   Serial.print(',');
     Serial.print(temp_c, 2); Serial.print(',');
-    // Always emit the last known pulse width — momentary edge misses (e.g.
-    // during I2C transfers) shouldn't snap the value to zero. rxGet() returns
-    // 0 only if a channel has never produced a valid pulse since boot.
-    // Failsafe based on rxAlive() is the flight controller's responsibility,
-    // not the data-stream's.
+    // EMA-smooth + apply per-channel center offset. rx_ema is 0 until the
+    // first valid pulse; once seeded, it never returns to 0 even on edge miss.
     for (uint8_t ch = 0; ch < 6; ch++) {
-      Serial.print(rxGet(ch));
+      uint16_t raw = rxGet(ch);
+      if (raw > 0) {
+        rx_ema[ch] = (rx_ema[ch] == 0)
+            ? raw
+            : RX_ALPHA * raw + (1.0f - RX_ALPHA) * rx_ema[ch];
+      }
+      int16_t out = 0;
+      if (rx_ema[ch] > 0) {
+        out = (int16_t)rx_ema[ch] - rx_offset[ch];
+        if (out < 1000) out = 1000;
+        if (out > 2000) out = 2000;
+      }
+      Serial.print(out);
       Serial.print(',');
     }
     Serial.println(now_ms);
