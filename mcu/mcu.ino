@@ -134,9 +134,13 @@ void loop() {
     Serial.print(pitch, 2); Serial.print(',');
     Serial.print(yaw, 2);   Serial.print(',');
     Serial.print(temp_c, 2); Serial.print(',');
-    uint32_t now_us = micros();
+    // Always emit the last known pulse width — momentary edge misses (e.g.
+    // during I2C transfers) shouldn't snap the value to zero. rxGet() returns
+    // 0 only if a channel has never produced a valid pulse since boot.
+    // Failsafe based on rxAlive() is the flight controller's responsibility,
+    // not the data-stream's.
     for (uint8_t ch = 0; ch < 6; ch++) {
-      Serial.print(rxAlive(ch, now_us) ? rxGet(ch) : 0);
+      Serial.print(rxGet(ch));
       Serial.print(',');
     }
     Serial.println(now_ms);

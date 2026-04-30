@@ -166,15 +166,28 @@ def draw_sticks_hud(width, height, ch):
     right_cx = width - margin - size / 2
     cy       = height - margin - size / 2
 
-    # Left stick: yaw (x, ch4) + throttle (y, ch3, 0..1).
-    yaw_x      = max(-1.0, min(1.0, (ch[3] - 1500) / 500.0)) if ch[3] else 0.0
-    throt_norm = max( 0.0, min(1.0, (ch[2] - 1000) / 1000.0)) if ch[2] else 0.0
-    _stick_box(left_cx, cy, size, yaw_x, throt_norm * 2 - 1, throttle=True)
+    # Headroom: trim noise near mechanical stick extremes by mapping a slightly
+    # narrower band onto full HUD range. Outside the band saturates.
+    #   centered sticks (roll/pitch/yaw): 1500 ± 400  -> ±1.0
+    #   throttle:                         1100..1700  ->  0..1
+    CENTER_HALF = 400.0
+    THROT_LO, THROT_HI = 1100.0, 1700.0
+
+    def _centered(v):
+        return 0.0 if not v else max(-1.0, min(1.0, (v - 1500) / CENTER_HALF))
+
+    def _throttle(v):
+        if not v:
+            return 0.0
+        return max(0.0, min(1.0, (v - THROT_LO) / (THROT_HI - THROT_LO)))
+
+    # Left stick: yaw (x, ch4) + throttle (y, ch3).
+    _stick_box(left_cx, cy, size,
+               _centered(ch[3]), _throttle(ch[2]) * 2 - 1, throttle=True)
 
     # Right stick: roll (x, ch1) + pitch (y, ch2).
-    roll_x  = max(-1.0, min(1.0, (ch[0] - 1500) / 500.0)) if ch[0] else 0.0
-    pitch_y = max(-1.0, min(1.0, (ch[1] - 1500) / 500.0)) if ch[1] else 0.0
-    _stick_box(right_cx, cy, size, roll_x, pitch_y, throttle=False)
+    _stick_box(right_cx, cy, size,
+               _centered(ch[0]), _centered(ch[1]), throttle=False)
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
