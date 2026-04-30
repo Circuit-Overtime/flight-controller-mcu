@@ -16,8 +16,9 @@ import pygame
 import serial
 from OpenGL.GL import (
     GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_DEPTH_TEST, GL_LINES,
-    GL_MODELVIEW, GL_PROJECTION, GL_QUADS, glBegin, glClear, glClearColor,
-    glColor3f, glEnable, glEnd, glLoadIdentity, glMatrixMode, glRotatef,
+    GL_LINE_LOOP, GL_MODELVIEW, GL_PROJECTION, GL_QUADS, glBegin, glClear,
+    glClearColor, glColor3f, glDisable, glEnable, glEnd, glLoadIdentity,
+    glMatrixMode, glOrtho, glPopMatrix, glPushMatrix, glRotatef, glVertex2f,
     glVertex3f,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
@@ -115,6 +116,72 @@ def render_text(font, surface, lines, x=10, y=10, color=(230, 230, 230)):
         surface.blit(img, (x, y + i * 18))
 
 
+def _quad(x0, y0, x1, y1):
+    glBegin(GL_QUADS)
+    glVertex2f(x0, y0); glVertex2f(x1, y0)
+    glVertex2f(x1, y1); glVertex2f(x0, y1)
+    glEnd()
+
+
+def _rect_outline(x0, y0, x1, y1):
+    glBegin(GL_LINE_LOOP)
+    glVertex2f(x0, y0); glVertex2f(x1, y0)
+    glVertex2f(x1, y1); glVertex2f(x0, y1)
+    glEnd()
+
+
+def _stick_box(cx, cy, size, dot_x, dot_y, throttle=False):
+    """Draw a stick box centered at (cx, cy). dot_x/dot_y are -1..+1; for
+    throttle, dot_y is 0..1 (no center spring)."""
+    half = size / 2
+    glColor3f(0.15, 0.15, 0.18); _quad(cx - half, cy - half, cx + half, cy + half)
+    glColor3f(0.4, 0.4, 0.45);   _rect_outline(cx - half, cy - half, cx + half, cy + half)
+    # Center crosshair (or throttle midline for non-centering stick).
+    glColor3f(0.3, 0.3, 0.35)
+    glBegin(GL_LINES)
+    if throttle:
+        glVertex2f(cx - half, cy); glVertex2f(cx + half, cy)
+    else:
+        glVertex2f(cx - half, cy); glVertex2f(cx + half, cy)
+        glVertex2f(cx, cy - half); glVertex2f(cx, cy + half)
+    glEnd()
+    # Dot.
+    px = cx + dot_x * half * 0.92
+    py = cy - dot_y * half * 0.92  # screen-y inverted: stick up = lower y
+    glColor3f(0.95, 0.85, 0.25)
+    _quad(px - 6, py - 6, px + 6, py + 6)
+
+
+def draw_sticks_hud(width, height, ch):
+    """Render two stick boxes in screen-space ortho. AETR convention:
+    ch[0]=roll, ch[1]=pitch, ch[2]=throttle, ch[3]=yaw."""
+    glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+    glOrtho(0, width, height, 0, -1, 1)
+    glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
+    glDisable(GL_DEPTH_TEST)
+
+    size = 160
+    margin = 30
+    left_cx  = margin + size / 2
+    right_cx = width - margin - size / 2
+    cy       = height - margin - size / 2
+
+    # Left stick: yaw (x, ch4) + throttle (y, ch3, 0..1).
+    yaw_x      = max(-1.0, min(1.0, (ch[3] - 1500) / 500.0)) if ch[3] else 0.0
+    throt_norm = max( 0.0, min(1.0, (ch[2] - 1000) / 1000.0)) if ch[2] else 0.0
+    _stick_box(left_cx, cy, size, yaw_x, throt_norm * 2 - 1, throttle=True)
+
+    # Right stick: roll (x, ch1) + pitch (y, ch2).
+    roll_x  = max(-1.0, min(1.0, (ch[0] - 1500) / 500.0)) if ch[0] else 0.0
+    pitch_y = max(-1.0, min(1.0, (ch[1] - 1500) / 500.0)) if ch[1] else 0.0
+    _stick_box(right_cx, cy, size, roll_x, pitch_y, throttle=False)
+
+    glEnable(GL_DEPTH_TEST)
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION); glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
+
 # Each view = (label, eye, up). World frame: X right, Y forward, Z up.
 # Drone is centered at the origin and stays level when IMU reads zero — only
 # the camera moves. center is always (0,0,0).
@@ -174,6 +241,7 @@ def main():
         glRotatef(pitch, 0, 1, 0)
         glRotatef(roll, 1, 0, 0)
         draw_cube()
+        draw_sticks_hud(width, height, ch)
         pygame.display.flip()
 
         # AETR convention: CH1=Aileron, CH2=Elevator, CH3=Throttle, CH4=Rudder.
