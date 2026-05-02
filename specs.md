@@ -20,3 +20,9 @@
 ## Testing:-
 
 - Indoor hover
+
+## Microcontroller:- 
+
+- Arduino Mega 
+- Reciever FS R6B
+- IMU MOU6050
