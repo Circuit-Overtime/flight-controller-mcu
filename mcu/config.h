@@ -74,3 +74,85 @@
 // Channels that should read ~1500 µs at rest (used for boot offset calibration).
 // Index matches RX channel - 1.
 #define RX_IS_CENTERED_INIT     { true, true, false, true, false, false }
+
+
+// =============================================================================
+// FLIGHT CONTROLLER
+// =============================================================================
+// Airframe: F450, X-quad, 450 mm motor-to-motor, ~900 g AUW estimated.
+// Power:    3S 11.1 V LiION, 1400 KV BLDC, 30 A SparkFun ESC.
+// Mode:     indoor self-leveling hover.
+
+// ---- Loop rates -------------------------------------------------------------
+#define FC_LOOP_HZ              200      // inner rate-PID loop frequency (Hz)
+#define FC_DT_S                 (1.0f / (float)FC_LOOP_HZ)
+
+
+// ---- Motor outputs (Servo PWM) ---------------------------------------------
+// All four ESCs run standard 50 Hz / 1000-2000 µs PWM via the Servo library.
+// Pin choice avoids conflicts with INT2..INT5 (RX = 19/18/2/3) and Wire (20/21).
+#define MOTOR_M1_PIN            4        // front-right (CCW)
+#define MOTOR_M2_PIN            5        // rear-right  (CW)
+#define MOTOR_M3_PIN            6        // rear-left   (CCW)
+#define MOTOR_M4_PIN            7        // front-left  (CW)
+
+// Pulse widths sent to ESCs.
+#define MOTOR_DISARM_US         1000     // ESCs MUST see this at boot to arm
+#define MOTOR_IDLE_US           1080     // armed but barely spinning
+#define MOTOR_MIN_US            1100     // minimum commandable in-flight throttle
+#define MOTOR_MAX_US            1900     // capped below 2000 to leave PID headroom
+
+// SparkFun ESC needs THROTTLE_LOW for ~1 s after powering up to recognize the
+// signal; we send MOTOR_DISARM_US continuously for this duration before the
+// loop allows armed throttle.
+#define ESC_BOOT_HOLD_MS        2500
+
+
+// ---- Stick mapping (post-calibration) --------------------------------------
+// Centered sticks read 1500 ± 400 µs (after firmware center-offset). Throttle
+// stick range is 1100..1900 µs. Anything outside saturates.
+#define STICK_DEAD_BAND_US      15        // ±15 µs around center -> zero input
+#define STICK_RANGE_HALF_US     400       // ±this from 1500 = full deflection
+#define STICK_THROTTLE_LO_US    1100
+#define STICK_THROTTLE_HI_US    1900
+
+// Maximum commanded angle (angle mode) and rate (acro / yaw).
+#define MAX_TILT_DEG            25.0f     // ±25° banking from full stick
+#define MAX_YAW_RATE_DPS        120.0f    // ±120 deg/s yaw at full rudder
+
+
+// ---- PID gains (initial guess for F450 / 1400 KV / 3S) ---------------------
+// Tuning starts with P only, then add D, then I. Edit these and re-flash.
+//
+// Outer angle loop: angle error (deg) -> rate setpoint (deg/s).
+//   3.0 deg/s per deg of tilt error feels gentle; raise for snappier leveling.
+#define PID_ANGLE_KP            3.0f
+
+// Inner roll/pitch rate loop (gyro feedback). Output in PWM µs.
+#define PID_ROLL_RATE_KP        0.50f
+#define PID_ROLL_RATE_KI        0.30f
+#define PID_ROLL_RATE_KD        0.005f
+#define PID_PITCH_RATE_KP       PID_ROLL_RATE_KP   // F450 is symmetric on X
+#define PID_PITCH_RATE_KI       PID_ROLL_RATE_KI
+#define PID_PITCH_RATE_KD       PID_ROLL_RATE_KD
+
+// Yaw rate loop. More P, less D — yaw axis has much higher inertia.
+#define PID_YAW_RATE_KP         1.50f
+#define PID_YAW_RATE_KI         0.50f
+#define PID_YAW_RATE_KD         0.0f
+
+// Anti-windup and saturation (in PWM µs).
+#define PID_I_LIMIT_US          100.0f    // |integral term| <= this
+#define PID_OUTPUT_LIMIT_US     300.0f    // |PID output|    <= this per axis
+
+
+// ---- Arming / safety -------------------------------------------------------
+// Arm gesture: throttle low + yaw stick held to a pre-configured side for N ms.
+// Disarm: throttle low + opposite yaw stick.
+#define ARM_THROTTLE_MAX_US     1080      // throttle must be ≤ this to arm
+#define ARM_YAW_LOW_US          1150      // yaw stick "held left"
+#define ARM_YAW_HIGH_US         1850      // yaw stick "held right"
+#define ARM_HOLD_MS             1500      // gesture hold time
+
+// Failsafe: if any flight-critical channel goes silent for this long, disarm.
+#define FAILSAFE_MS             250
