@@ -1,6 +1,6 @@
 #include <Servo.h>
-#include "motors.h"
-#include "config.h"
+#include "include/motors.h"
+#include "include/config.h"
 
 static Servo m1, m2, m3, m4;
 

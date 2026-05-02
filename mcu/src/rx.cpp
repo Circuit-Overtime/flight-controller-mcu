@@ -18,7 +18,7 @@
 // CH5/CH6 are not handled here. They will return rxGet=0/rxAlive=false until
 // connected via a future PCINT or ICP path.
 
-#include "rx.h"
+#include "include/rx.h"
 
 static const uint8_t RX_HW_CHANNELS = 4;
 

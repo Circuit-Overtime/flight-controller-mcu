@@ -1,5 +1,5 @@
-#include "mixer.h"
-#include "config.h"
+#include "include/mixer.h"
+#include "include/config.h"
 
 static inline uint16_t _clamp_us(float v) {
   if (v < (float)MOTOR_MIN_US) return MOTOR_MIN_US;

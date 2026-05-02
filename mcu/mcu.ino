@@ -5,8 +5,8 @@
 // Channels are FS-R6B PWM widths in µs (1000..2000); 0 means no signal.
 
 #include <Wire.h>
-#include "config.h"
-#include "rx.h"
+#include "src/include/config.h"
+#include "src/include/rx.h"
 
 // MPU6050 register addresses (see datasheet "Register Map", §3).
 static const uint8_t  REG_PWR_MGMT = 0x6B;
