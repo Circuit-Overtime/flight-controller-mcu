@@ -10,10 +10,10 @@
 
 
 // ---- Serial telemetry -------------------------------------------------------
-// 250 kbaud chosen to keep the 22-field CSV stream comfortably within bandwidth
-// (line is ~150 chars; 100 Hz x 150 chars = 15 kchar/s, needs > 150 kbaud).
-// Mega's USB-serial bridge handles 250 kbaud fine; visualizer must match.
-#define TELEMETRY_BAUD          250000UL
+// 230400 baud: ~23 kchar/s, comfortably above the ~15 kchar/s the 22-field
+// CSV needs at 100 Hz. Picked over 250000 because Linux termios rejects
+// non-standard rates (250 kbaud isn't on the kernel's whitelist).
+#define TELEMETRY_BAUD          230400UL
 #define TELEMETRY_HZ            100      // CSV stream rate to host
 
 
