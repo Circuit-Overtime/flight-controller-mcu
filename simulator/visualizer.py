@@ -261,7 +261,7 @@ VIEWS = {
 
 def main():
     port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"
-    baud = int(sys.argv[2]) if len(sys.argv) > 2 else 115200
+    baud = int(sys.argv[2]) if len(sys.argv) > 2 else 250000
 
     pygame.init()
     width, height = 1000, 640

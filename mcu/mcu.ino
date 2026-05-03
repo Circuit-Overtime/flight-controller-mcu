@@ -222,7 +222,12 @@ void loop() {
                                  rxCorrected(2), rxCorrected(3),
                                  failsafe, now_ms);
 
-    if (sp.just_armed || sp.just_disarmed) {
+    // Wipe PID state every tick while disarmed so integrators can't wind up
+    // from IMU drift / mounting-bias errors. This makes the displayed motor
+    // commands a pure P-response in disarmed mode (instantaneous, repeatable),
+    // which is what we want for sign-verification and tuning visualization.
+    // Once armed, the integrators behave normally until the next disarm.
+    if (!sp.armed) {
       pid_roll_angle.reset(); pid_pitch_angle.reset();
       pid_roll_rate.reset();  pid_pitch_rate.reset();  pid_yaw_rate.reset();
     }
