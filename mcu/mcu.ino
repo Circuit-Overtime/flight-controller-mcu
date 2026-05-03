@@ -47,6 +47,12 @@ uint32_t last_us = 0;
 uint32_t last_stream_ms = 0;
 uint32_t last_fc_us     = 0;
 
+// Last-computed motor commands and arming state, updated by the FC tick and
+// read by the telemetry stream so the visualizer can render them.
+uint16_t motor_out[4]   = {MOTOR_DISARM_US, MOTOR_DISARM_US,
+                           MOTOR_DISARM_US, MOTOR_DISARM_US};
+bool     fc_armed       = false;
+
 // RX center-calibration state. The EMA below smooths CSV telemetry only;
 // the FC reads raw rxGet() with offsets applied for minimum latency.
 static const bool RX_IS_CENTERED[RX_NUM_CHANNELS] = RX_IS_CENTERED_INIT;
@@ -175,7 +181,8 @@ void setup() {
   calibrateRx();
   last_us    = micros();
   last_fc_us = last_us;
-  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,ch1,ch2,ch3,ch4,ch5,ch6,t_ms"));
+  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,"
+                   "ch1,ch2,ch3,ch4,ch5,ch6,armed,m1,m2,m3,m4,t_ms"));
 }
 
 void loop() {
@@ -215,27 +222,24 @@ void loop() {
                                  rxCorrected(2), rxCorrected(3),
                                  failsafe, now_ms);
 
-    if (sp.just_armed) {
+    if (sp.just_armed || sp.just_disarmed) {
       pid_roll_angle.reset(); pid_pitch_angle.reset();
       pid_roll_rate.reset();  pid_pitch_rate.reset();  pid_yaw_rate.reset();
     }
 
-    if (sp.armed) {
-      // Outer angle loop: tilt error -> rate setpoint (deg/s).
-      float roll_rate_sp  = pid_roll_angle.update (sp.angle_roll_deg,  roll,  FC_DT_S);
-      float pitch_rate_sp = pid_pitch_angle.update(sp.angle_pitch_deg, pitch, FC_DT_S);
+    // Always run the PID + mixer so the simulator can show "what the FC
+    // would command right now" even when disarmed. Only motorsWrite when
+    // actually armed.
+    float roll_rate_sp  = pid_roll_angle.update (sp.angle_roll_deg,  roll,  FC_DT_S);
+    float pitch_rate_sp = pid_pitch_angle.update(sp.angle_pitch_deg, pitch, FC_DT_S);
+    float roll_us       = pid_roll_rate.update  (roll_rate_sp,       gx,    FC_DT_S);
+    float pitch_us      = pid_pitch_rate.update (pitch_rate_sp,      gy,    FC_DT_S);
+    float yaw_us        = pid_yaw_rate.update   (sp.yaw_rate_dps,    gz,    FC_DT_S);
+    mixerComputeXQuad(sp.throttle_us, roll_us, pitch_us, yaw_us, motor_out);
 
-      // Inner rate loop: rate error -> PWM correction (us).
-      float roll_us  = pid_roll_rate.update (roll_rate_sp,    gx, FC_DT_S);
-      float pitch_us = pid_pitch_rate.update(pitch_rate_sp,   gy, FC_DT_S);
-      float yaw_us   = pid_yaw_rate.update  (sp.yaw_rate_dps, gz, FC_DT_S);
-
-      uint16_t motors[4];
-      mixerComputeXQuad(sp.throttle_us, roll_us, pitch_us, yaw_us, motors);
-      motorsWrite(motors);
-    } else {
-      motorsDisarm();
-    }
+    fc_armed = sp.armed;
+    if (fc_armed) motorsWrite(motor_out);
+    else          motorsDisarm();
   }
 
   // ---- Telemetry stream (unchanged 17-field CSV for visualizer) -----------
@@ -267,6 +271,11 @@ void loop() {
       Serial.print(out);
       Serial.print(',');
     }
+    Serial.print(fc_armed ? 1 : 0); Serial.print(',');
+    Serial.print(motor_out[0]); Serial.print(',');
+    Serial.print(motor_out[1]); Serial.print(',');
+    Serial.print(motor_out[2]); Serial.print(',');
+    Serial.print(motor_out[3]); Serial.print(',');
     Serial.println(now_ms);
   }
 }

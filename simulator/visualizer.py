@@ -37,12 +37,14 @@ class ImuState:
     yaw: float = 0.0
     temp_c: float = 0.0
     ch: tuple = (0, 0, 0, 0, 0, 0)
+    armed: bool = False
+    motors: tuple = (1000, 1000, 1000, 1000)
     t_ms: int = 0
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def update_from_csv(self, line: str) -> bool:
         parts = line.strip().split(",")
-        if len(parts) != 17:
+        if len(parts) != 22:
             return False
         try:
             vals = [float(p) for p in parts]
@@ -53,9 +55,12 @@ class ImuState:
              self.gx, self.gy, self.gz,
              self.roll, self.pitch, self.yaw,
              self.temp_c,
-             c1, c2, c3, c4, c5, c6, t) = vals
-            self.ch = (int(c1), int(c2), int(c3), int(c4), int(c5), int(c6))
-            self.t_ms = int(t)
+             c1, c2, c3, c4, c5, c6,
+             armed, m1, m2, m3, m4, t) = vals
+            self.ch     = (int(c1), int(c2), int(c3), int(c4), int(c5), int(c6))
+            self.armed  = (int(armed) != 0)
+            self.motors = (int(m1), int(m2), int(m3), int(m4))
+            self.t_ms   = int(t)
         return True
 
     def snapshot(self):
@@ -63,7 +68,8 @@ class ImuState:
             return (self.ax, self.ay, self.az,
                     self.gx, self.gy, self.gz,
                     self.roll, self.pitch, self.yaw,
-                    self.temp_c, self.ch, self.t_ms)
+                    self.temp_c, self.ch,
+                    self.armed, self.motors, self.t_ms)
 
 
 def serial_reader(port: str, baud: int, state: ImuState, stop: threading.Event):
@@ -150,6 +156,54 @@ def _stick_box(cx, cy, size, dot_x, dot_y, throttle=False):
     py = cy - dot_y * half * 0.92  # screen-y inverted: stick up = lower y
     glColor3f(0.95, 0.85, 0.25)
     _quad(px - 6, py - 6, px + 6, py + 6)
+
+
+def draw_motors_hud(width, height, motors, armed):
+    """Render a 2x2 grid of motor-output bars in X-quad layout:
+
+           M4  M1
+           M3  M2
+
+    Each bar fills bottom-to-top proportional to (m_us - 1000) / 1000.
+    Disarmed: bars dimmed gray. Armed: green->yellow->red gradient based
+    on output level."""
+    glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+    glOrtho(0, width, height, 0, -1, 1)
+    glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
+    glDisable(GL_DEPTH_TEST)
+
+    bar_w, bar_h, gap = 36, 110, 14
+    grid_w = bar_w * 2 + gap
+    grid_h = bar_h * 2 + gap
+    cx     = width / 2
+    cy     = height - 30 - grid_h / 2  # near top, centered horizontally
+    # Top-left (M4 FL), top-right (M1 FR), bottom-left (M3 RL), bottom-right (M2 RR).
+    cells = [
+        (cx - bar_w - gap / 2, cy - bar_h - gap / 2, motors[3]),  # M4
+        (cx + gap / 2,         cy - bar_h - gap / 2, motors[0]),  # M1
+        (cx - bar_w - gap / 2, cy + gap / 2,         motors[2]),  # M3
+        (cx + gap / 2,         cy + gap / 2,         motors[1]),  # M2
+    ]
+    for x, y, m_us in cells:
+        # Outline.
+        glColor3f(0.4, 0.4, 0.45)
+        _rect_outline(x, y, x + bar_w, y + bar_h)
+        # Fill.
+        norm = max(0.0, min(1.0, (m_us - 1000) / 1000.0))
+        if not armed:
+            r, g, b = 0.30, 0.30, 0.32
+        elif norm < 0.5:
+            r, g, b = 0.20 + norm * 1.0, 0.85, 0.20      # green -> yellow
+        else:
+            r, g, b = 0.95, 0.85 - (norm - 0.5) * 1.4, 0.10  # yellow -> red
+        fill_h = bar_h * norm
+        glColor3f(r, g, b)
+        _quad(x + 2, y + bar_h - fill_h, x + bar_w - 2, y + bar_h - 2)
+
+    glEnable(GL_DEPTH_TEST)
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION); glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
 
 
 def draw_sticks_hud(width, height, ch):
@@ -241,7 +295,8 @@ def main():
                 elif event.key in VIEWS:
                     view_name, view_eye, view_up = VIEWS[event.key]
 
-        ax, ay, az, gx, gy, gz, roll, pitch, yaw, temp_c, ch, t_ms = state.snapshot()
+        (ax, ay, az, gx, gy, gz, roll, pitch, yaw,
+         temp_c, ch, armed, motors, t_ms) = state.snapshot()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
@@ -254,15 +309,17 @@ def main():
         glRotatef(pitch, 0, 1, 0)
         glRotatef(roll, 1, 0, 0)
         draw_cube()
+        draw_motors_hud(width, height, motors, armed)
         draw_sticks_hud(width, height, ch)
         pygame.display.flip()
 
         # AETR convention: CH1=Aileron, CH2=Elevator, CH3=Throttle, CH4=Rudder.
+        state_str = "ARMED  " if armed else "disarm "
         pygame.display.set_caption(
-            f"[{view_name}]  "
-            f"r={roll:+5.0f} p={pitch:+5.0f} y={yaw:+5.0f}  T={temp_c:.0f}C  "
-            f"A={ch[0]:4d} E={ch[1]:4d} T={ch[2]:4d} R={ch[3]:4d} "
-            f"X1={ch[4]:4d} X2={ch[5]:4d}  [1/2/3 view  Esc quit]"
+            f"{state_str}[{view_name}]  "
+            f"r={roll:+5.0f} p={pitch:+5.0f} y={yaw:+5.0f}  "
+            f"M=[{motors[0]} {motors[1]} {motors[2]} {motors[3]}]  "
+            f"T={temp_c:.0f}C  [1/2/3 view  Esc]"
         )
         clock.tick(60)
 
