@@ -19,9 +19,9 @@ from OpenGL.GL import (
     GL_LINEAR, GL_LINES, GL_LINE_LOOP, GL_MODELVIEW, GL_ONE_MINUS_SRC_ALPHA,
     GL_PROJECTION, GL_QUADS, GL_RGBA, GL_SRC_ALPHA, GL_TEXTURE_2D,
     GL_TEXTURE_MAG_FILTER, GL_TEXTURE_MIN_FILTER, GL_UNSIGNED_BYTE, glBegin,
-    glBindTexture, glBlendFunc, glClear, glClearColor, glColor3f, glDisable,
-    glEnable, glEnd, glGenTextures, glLoadIdentity, glMatrixMode, glOrtho,
-    glPopMatrix, glPushMatrix, glRotatef, glTexCoord2f, glTexImage2D,
+    glBindTexture, glBlendFunc, glClear, glClearColor, glColor3f,
+    glDisable, glEnable, glEnd, glGenTextures, glLoadIdentity, glMatrixMode,
+    glOrtho, glPopMatrix, glPushMatrix, glRotatef, glTexCoord2f, glTexImage2D,
     glTexParameteri, glVertex2f, glVertex3f,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
@@ -185,7 +185,7 @@ def _stick_box(cx, cy, size, dot_x, dot_y, throttle=False):
     _quad(px - 6, py - 6, px + 6, py + 6)
 
 
-def draw_motors_hud(width, height, motors, armed, label_textures):
+def draw_motors_hud(width, height, motors, armed, label_textures, value_cache):
     """Render the four motors as labeled squares laid out like the X-quad
     seen from above:
 
@@ -202,12 +202,13 @@ def draw_motors_hud(width, height, motors, armed, label_textures):
     glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
     glDisable(GL_DEPTH_TEST)
 
-    sq, gap = 80, 32                  # square size and spacing between motors
-    label_h = 22                      # vertical room above each square for "Mn"
-    grid_w  = sq * 2 + gap
-    grid_h  = sq * 2 + gap + label_h * 2
-    cx      = width / 2
-    cy_top  = 18                      # top of the whole grid in screen px
+    sq, gap   = 80, 36                # square size and spacing between motors
+    label_h   = 22                    # text room above each square for "Mn"
+    value_h   = 18                    # text room below each square for "1234"
+    grid_w    = sq * 2 + gap
+    grid_h    = (sq + label_h + value_h) * 2 + gap
+    cx        = width / 2
+    cy_top    = 14                    # top of the whole grid in screen px
 
     # Cell layout mirrors the physical X-quad seen from above:
     #   row 0 (top of grid)    = front of drone -> M4 (FL),  M1 (FR)
@@ -215,7 +216,7 @@ def draw_motors_hud(width, height, motors, armed, label_textures):
     col_left  = cx - sq - gap / 2
     col_right = cx + gap / 2
     row_top    = cy_top + label_h
-    row_bottom = cy_top + label_h + sq + gap + label_h
+    row_bottom = cy_top + label_h + sq + value_h + gap + label_h
 
     cells = [
         ("M4", col_left,  row_top,    motors[3]),
@@ -241,11 +242,16 @@ def draw_motors_hud(width, height, motors, armed, label_textures):
             r, g, b = 0.20 + norm * 1.0, 0.85, 0.20
         else:
             r, g, b = 0.95, 0.85 - (norm - 0.5) * 1.4, 0.10
-        inner = sq * (0.20 + 0.78 * norm)   # never fully empty for visibility
+        inner = sq * (0.20 + 0.78 * norm)
         ix    = x + (sq - inner) / 2
         iy    = y + (sq - inner) / 2
         glColor3f(r, g, b)
         _quad(ix, iy, ix + inner, iy + inner)
+
+        # Live us value below the square.
+        text     = str(m_us)
+        _, vw, _ = value_cache.get(text)
+        value_cache.draw(text, x + (sq - vw) / 2, y + sq + 2)
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
@@ -257,6 +263,29 @@ def init_motor_labels(font):
     """Pre-render M1..M4 text labels as GL textures. Call once after the
     GL context exists (i.e., after pygame.display.set_mode)."""
     return {name: _make_text_texture(font, name) for name in ("M1", "M2", "M3", "M4")}
+
+
+class TextCache:
+    """Lazy GL texture cache for short strings (e.g. live motor pulse widths).
+    Each unique string is rendered + uploaded once and reused across frames.
+    Memory budget is tiny: ~1000 unique us values × ~3 KB each = ~3 MB."""
+
+    def __init__(self, font, color=(220, 220, 220)):
+        self.font  = font
+        self.color = color
+        self._cache = {}
+
+    def get(self, text):
+        entry = self._cache.get(text)
+        if entry is None:
+            entry = _make_text_texture(self.font, text, self.color)
+            self._cache[text] = entry
+        return entry
+
+    def draw(self, text, x, y):
+        tex_id, w, h = self.get(text)
+        _draw_textured_quad(tex_id, x, y, w, h)
+        return w, h
 
 
 def draw_sticks_hud(width, height, ch):
@@ -329,8 +358,10 @@ def main():
 
     # Pre-render motor labels as GL textures (must happen after set_mode so
     # the GL context exists).
-    label_font    = pygame.font.SysFont("monospace", 18, bold=True)
-    motor_labels  = init_motor_labels(label_font)
+    label_font   = pygame.font.SysFont("monospace", 18, bold=True)
+    value_font   = pygame.font.SysFont("monospace", 14)
+    motor_labels = init_motor_labels(label_font)
+    value_cache  = TextCache(value_font, color=(200, 200, 210))
 
     state = ImuState()
     stop = threading.Event()
@@ -366,7 +397,7 @@ def main():
         glRotatef(pitch, 0, 1, 0)
         glRotatef(roll, 1, 0, 0)
         draw_cube()
-        draw_motors_hud(width, height, motors, armed, motor_labels)
+        draw_motors_hud(width, height, motors, armed, motor_labels, value_cache)
         draw_sticks_hud(width, height, ch)
         pygame.display.flip()
 
