@@ -15,11 +15,14 @@ from dataclasses import dataclass, field
 import pygame
 import serial
 from OpenGL.GL import (
-    GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_DEPTH_TEST, GL_LINES,
-    GL_LINE_LOOP, GL_MODELVIEW, GL_PROJECTION, GL_QUADS, glBegin, glClear,
-    glClearColor, glColor3f, glDisable, glEnable, glEnd, glLoadIdentity,
-    glMatrixMode, glOrtho, glPopMatrix, glPushMatrix, glRotatef, glVertex2f,
-    glVertex3f,
+    GL_BLEND, GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_DEPTH_TEST,
+    GL_LINEAR, GL_LINES, GL_LINE_LOOP, GL_MODELVIEW, GL_ONE_MINUS_SRC_ALPHA,
+    GL_PROJECTION, GL_QUADS, GL_RGBA, GL_SRC_ALPHA, GL_TEXTURE_2D,
+    GL_TEXTURE_MAG_FILTER, GL_TEXTURE_MIN_FILTER, GL_UNSIGNED_BYTE, glBegin,
+    glBindTexture, glBlendFunc, glClear, glClearColor, glColor3f, glDisable,
+    glEnable, glEnd, glGenTextures, glLoadIdentity, glMatrixMode, glOrtho,
+    glPopMatrix, glPushMatrix, glRotatef, glTexCoord2f, glTexImage2D,
+    glTexParameteri, glVertex2f, glVertex3f,
 )
 from OpenGL.GLU import gluLookAt, gluPerspective
 
@@ -122,6 +125,41 @@ def render_text(font, surface, lines, x=10, y=10, color=(230, 230, 230)):
         surface.blit(img, (x, y + i * 18))
 
 
+def _make_text_texture(font, text, color=(235, 235, 235)):
+    """Render `text` to a pygame surface and upload as an OpenGL RGBA texture.
+    Returns (texture_id, width_px, height_px). Background is fully transparent
+    (font.render with antialias produces per-pixel alpha)."""
+    surface = font.render(text, True, color)
+    w, h = surface.get_size()
+    data = pygame.image.tostring(surface, "RGBA", True)
+    tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
+    glBindTexture(GL_TEXTURE_2D, 0)
+    return tex, w, h
+
+
+def _draw_textured_quad(tex_id, x, y, w, h):
+    """Blit the text texture at (x, y), size (w, h), in screen-space ortho."""
+    glEnable(GL_TEXTURE_2D)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+    glColor3f(1, 1, 1)
+    glBegin(GL_QUADS)
+    # ortho is set with y-flip via glOrtho(0, w, h, 0); texture coords stay normal.
+    glTexCoord2f(0, 1); glVertex2f(x,     y)
+    glTexCoord2f(1, 1); glVertex2f(x + w, y)
+    glTexCoord2f(1, 0); glVertex2f(x + w, y + h)
+    glTexCoord2f(0, 0); glVertex2f(x,     y + h)
+    glEnd()
+    glDisable(GL_TEXTURE_2D)
+    glDisable(GL_BLEND)
+    glBindTexture(GL_TEXTURE_2D, 0)
+
+
 def _quad(x0, y0, x1, y1):
     glBegin(GL_QUADS)
     glVertex2f(x0, y0); glVertex2f(x1, y0)
@@ -158,52 +196,78 @@ def _stick_box(cx, cy, size, dot_x, dot_y, throttle=False):
     _quad(px - 6, py - 6, px + 6, py + 6)
 
 
-def draw_motors_hud(width, height, motors, armed):
-    """Render a 2x2 grid of motor-output bars in X-quad layout:
+def draw_motors_hud(width, height, motors, armed, label_textures):
+    """Render the four motors as labeled squares laid out like the X-quad
+    seen from above:
 
-           M4  M1
-           M3  M2
+           [M4]   [M1]      front (drone nose)
+           [M3]   [M2]      rear
 
-    Each bar fills bottom-to-top proportional to (m_us - 1000) / 1000.
-    Disarmed: bars dimmed gray. Armed: green->yellow->red gradient based
-    on output level."""
+    Each square outline is fixed size; an inner filled square scales in BOTH
+    dimensions with the motor command (1000..2000 us -> 0..1). Color goes
+    green -> yellow -> red with output level. Disarmed: gray inner square.
+    Text labels (M1..M4) are drawn above each square as OpenGL textures
+    pre-rendered from a pygame font in init_motor_labels()."""
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
     glOrtho(0, width, height, 0, -1, 1)
     glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
     glDisable(GL_DEPTH_TEST)
 
-    bar_w, bar_h, gap = 36, 110, 14
-    grid_w = bar_w * 2 + gap
-    grid_h = bar_h * 2 + gap
-    cx     = width / 2
-    cy     = height - 30 - grid_h / 2  # near top, centered horizontally
-    # Top-left (M4 FL), top-right (M1 FR), bottom-left (M3 RL), bottom-right (M2 RR).
+    sq, gap = 80, 32                  # square size and spacing between motors
+    label_h = 22                      # vertical room above each square for "Mn"
+    grid_w  = sq * 2 + gap
+    grid_h  = sq * 2 + gap + label_h * 2
+    cx      = width / 2
+    cy_top  = 18                      # top of the whole grid in screen px
+
+    # Cell layout mirrors the physical X-quad seen from above:
+    #   row 0 (top of grid)    = front of drone -> M4 (FL),  M1 (FR)
+    #   row 1 (bottom of grid) = rear of drone  -> M3 (RL),  M2 (RR)
+    col_left  = cx - sq - gap / 2
+    col_right = cx + gap / 2
+    row_top    = cy_top + label_h
+    row_bottom = cy_top + label_h + sq + gap + label_h
+
     cells = [
-        (cx - bar_w - gap / 2, cy - bar_h - gap / 2, motors[3]),  # M4
-        (cx + gap / 2,         cy - bar_h - gap / 2, motors[0]),  # M1
-        (cx - bar_w - gap / 2, cy + gap / 2,         motors[2]),  # M3
-        (cx + gap / 2,         cy + gap / 2,         motors[1]),  # M2
+        ("M4", col_left,  row_top,    motors[3]),
+        ("M1", col_right, row_top,    motors[0]),
+        ("M3", col_left,  row_bottom, motors[2]),
+        ("M2", col_right, row_bottom, motors[1]),
     ]
-    for x, y, m_us in cells:
-        # Outline.
-        glColor3f(0.4, 0.4, 0.45)
-        _rect_outline(x, y, x + bar_w, y + bar_h)
-        # Fill.
+
+    for name, x, y, m_us in cells:
+        # Label above the square.
+        tex_id, tw, th = label_textures[name]
+        _draw_textured_quad(tex_id, x + (sq - tw) / 2, y - label_h, tw, th)
+
+        # Outer outline.
+        glColor3f(0.45, 0.45, 0.50)
+        _rect_outline(x, y, x + sq, y + sq)
+
+        # Inner filled square sized by motor output.
         norm = max(0.0, min(1.0, (m_us - 1000) / 1000.0))
         if not armed:
-            r, g, b = 0.30, 0.30, 0.32
+            r, g, b = 0.32, 0.32, 0.34
         elif norm < 0.5:
-            r, g, b = 0.20 + norm * 1.0, 0.85, 0.20      # green -> yellow
+            r, g, b = 0.20 + norm * 1.0, 0.85, 0.20
         else:
-            r, g, b = 0.95, 0.85 - (norm - 0.5) * 1.4, 0.10  # yellow -> red
-        fill_h = bar_h * norm
+            r, g, b = 0.95, 0.85 - (norm - 0.5) * 1.4, 0.10
+        inner = sq * (0.20 + 0.78 * norm)   # never fully empty for visibility
+        ix    = x + (sq - inner) / 2
+        iy    = y + (sq - inner) / 2
         glColor3f(r, g, b)
-        _quad(x + 2, y + bar_h - fill_h, x + bar_w - 2, y + bar_h - 2)
+        _quad(ix, iy, ix + inner, iy + inner)
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
     glMatrixMode(GL_PROJECTION); glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
+
+
+def init_motor_labels(font):
+    """Pre-render M1..M4 text labels as GL textures. Call once after the
+    GL context exists (i.e., after pygame.display.set_mode)."""
+    return {name: _make_text_texture(font, name) for name in ("M1", "M2", "M3", "M4")}
 
 
 def draw_sticks_hud(width, height, ch):
@@ -274,6 +338,11 @@ def main():
     gluPerspective(45, width / height, 0.1, 50.0)
     glMatrixMode(GL_MODELVIEW)
 
+    # Pre-render motor labels as GL textures (must happen after set_mode so
+    # the GL context exists).
+    label_font    = pygame.font.SysFont("monospace", 18, bold=True)
+    motor_labels  = init_motor_labels(label_font)
+
     state = ImuState()
     stop = threading.Event()
     reader = threading.Thread(
@@ -309,7 +378,7 @@ def main():
         glRotatef(pitch, 0, 1, 0)
         glRotatef(roll, 1, 0, 0)
         draw_cube()
-        draw_motors_hud(width, height, motors, armed)
+        draw_motors_hud(width, height, motors, armed, motor_labels)
         draw_sticks_hud(width, height, ch)
         pygame.display.flip()
 
