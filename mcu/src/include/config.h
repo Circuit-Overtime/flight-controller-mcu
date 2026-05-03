@@ -44,17 +44,12 @@
 //   CH5/CH6 unused for now (will be arm-switch + flight-mode later)
 #define RX_NUM_CHANNELS         6        // streamed; only 1..4 are wired
 
-// Pin assignments: external interrupts INT2..INT5 on Mega 2560.
-//   INT2 = pin 19 (PD2)
-//   INT3 = pin 18 (PD3)
-//   INT4 = pin  2 (PE4)
-//   INT5 = pin  3 (PE5)
-// CH5/CH6 stay on Port K PCINT (A12/A13) so the existing wiring still works
-// for any future switch channels.
-#define RX_CH1_PIN              19
-#define RX_CH2_PIN              18
-#define RX_CH3_PIN              2
-#define RX_CH4_PIN              3
+// Pin assignments: all six channels on Port K (Mega A8..A13 = PCINT16..21).
+// Single PCINT2_vect ISR services all of them — see rx.cpp for the mask.
+#define RX_CH1_PIN              A8
+#define RX_CH2_PIN              A9
+#define RX_CH3_PIN              A10
+#define RX_CH4_PIN              A11
 #define RX_CH5_PIN              A12
 #define RX_CH6_PIN              A13
 
@@ -90,11 +85,13 @@
 
 // ---- Motor outputs (Servo PWM) ---------------------------------------------
 // All four ESCs run standard 50 Hz / 1000-2000 µs PWM via the Servo library.
-// Pin choice avoids conflicts with INT2..INT5 (RX = 19/18/2/3) and Wire (20/21).
-#define MOTOR_M1_PIN            4        // front-right (CCW)
-#define MOTOR_M2_PIN            5        // rear-right  (CW)
-#define MOTOR_M3_PIN            6        // rear-left   (CCW)
-#define MOTOR_M4_PIN            7        // front-left  (CW)
+// Note: pins 50 and 52 double as SPI MISO/SCK — using them for motors blocks
+// future SPI peripherals on this Mega. Servo lib doesn't care which digital
+// pin; the choice here matches the user's physical wiring.
+#define MOTOR_M1_PIN            52       // front-right (CCW)
+#define MOTOR_M2_PIN            50       // rear-right  (CW)
+#define MOTOR_M3_PIN            48       // rear-left   (CCW)
+#define MOTOR_M4_PIN            46       // front-left  (CW)
 
 // Pulse widths sent to ESCs.
 #define MOTOR_DISARM_US         1000     // ESCs MUST see this at boot to arm

@@ -1,76 +1,55 @@
-// FlySky FS-R6B receiver — 4-channel PWM capture via external interrupts.
+// FlySky FS-R6B receiver — PWM capture via Pin-Change Interrupt on Port K.
 //
-// Each AETR channel gets its own dedicated INT vector on the Mega 2560:
-//   CH1 (roll)     -> pin 19 (PD2, INT2)
-//   CH2 (pitch)    -> pin 18 (PD3, INT3)
-//   CH3 (throttle) -> pin  2 (PE4, INT4)
-//   CH4 (yaw)      -> pin  3 (PE5, INT5)
+// All six channels share Port K (Mega pins A8..A13 = PCINT16..21), so a
+// single ISR vector (PCINT2_vect) services every edge. The ISR reads PINK,
+// XORs with the previous state to find which pin changed, and stamps a
+// rise time or computes a pulse width accordingly.
 //
-// Why external interrupts and not PCINT?
-//   - Each channel has its own ISR — no port-state diff needed in the handler,
-//     so the ISR is shorter and more deterministic.
-//   - INT2..5 sit at lower vector numbers than PCINT2, so they win arbitration
-//     when two interrupts go pending simultaneously (e.g. two channels edge
-//     during the same I2C-blocked window).
-//   - Edge sensitivity is configured in EICRA/EICRB; we use "any logical change"
-//     so a single vector services both rising and falling edges.
+// Wiring:
+//   CH1..CH4 signal -> A8..A11 (PCINT16..19)
+//   CH5..CH6 signal -> A12..A13 (PCINT20..21, optional)
+//   V+ from any channel -> Mega 5V
+//   GND from any channel -> Mega GND
 //
-// CH5/CH6 are not handled here. They will return rxGet=0/rxAlive=false until
-// connected via a future PCINT or ICP path.
+// Trade-off vs external interrupts: PCINT shares one vector across the port,
+// so the ISR has to do a port-state diff to identify which channel changed.
+// Slightly more work per edge than dedicated INT2..5 vectors, but only one
+// pin block on the board (clean ribbon cable to the analog header).
 
 #include "include/rx.h"
-
-static const uint8_t RX_HW_CHANNELS = 4;
 
 static volatile uint32_t rx_rise[RX_NUM_CHANNELS]        = {0};
 static volatile uint16_t rx_pulse[RX_NUM_CHANNELS]       = {0};
 static volatile uint32_t rx_last_update[RX_NUM_CHANNELS] = {0};
+static volatile uint8_t  rx_prev_state                   = 0;
 
-// Read pin level directly from PIN register — faster than digitalRead in ISR.
-static inline bool _read_ch1() { return (PIND & _BV(PD2)) != 0; }   // pin 19
-static inline bool _read_ch2() { return (PIND & _BV(PD3)) != 0; }   // pin 18
-static inline bool _read_ch3() { return (PINE & _BV(PE4)) != 0; }   // pin 2
-static inline bool _read_ch4() { return (PINE & _BV(PE5)) != 0; }   // pin 3
+ISR(PCINT2_vect) {
+  uint8_t state   = PINK;
+  uint8_t changed = state ^ rx_prev_state;
+  rx_prev_state   = state;
+  uint32_t now    = micros();
 
-// Common edge handler. Inlined into each ISR via the per-channel wrapper.
-static inline void _handle_edge(uint8_t ch, bool level, uint32_t now) {
-  if (level) {
-    rx_rise[ch] = now;
-  } else if (rx_rise[ch] != 0) {
-    uint16_t width = (uint16_t)(now - rx_rise[ch]);
-    if (width >= RX_PULSE_MIN_US && width <= RX_PULSE_MAX_US) {
-      rx_pulse[ch]       = width;
-      rx_last_update[ch] = now;
+  for (uint8_t i = 0; i < RX_NUM_CHANNELS; i++) {
+    uint8_t mask = (uint8_t)(1 << i);
+    if (!(changed & mask)) continue;
+    if (state & mask) {
+      rx_rise[i] = now;
+    } else if (rx_rise[i] != 0) {
+      uint16_t width = (uint16_t)(now - rx_rise[i]);
+      if (width >= RX_PULSE_MIN_US && width <= RX_PULSE_MAX_US) {
+        rx_pulse[i]       = width;
+        rx_last_update[i] = now;
+      }
     }
   }
 }
 
-ISR(INT2_vect) { _handle_edge(0, _read_ch1(), micros()); }
-ISR(INT3_vect) { _handle_edge(1, _read_ch2(), micros()); }
-ISR(INT4_vect) { _handle_edge(2, _read_ch3(), micros()); }
-ISR(INT5_vect) { _handle_edge(3, _read_ch4(), micros()); }
-
 void rxInit() {
-  // Pins as inputs, no internal pull-ups (RX is push-pull).
-  pinMode(RX_CH1_PIN, INPUT);
-  pinMode(RX_CH2_PIN, INPUT);
-  pinMode(RX_CH3_PIN, INPUT);
-  pinMode(RX_CH4_PIN, INPUT);
-
-  // Configure edge sensitivity to "any logical change" for INT2..5.
-  // EICRA layout: ISC30, ISC31 | ISC20, ISC21 | ISC10, ISC11 | ISC00, ISC01
-  // EICRB layout: ISC70, ISC71 | ISC60, ISC61 | ISC50, ISC51 | ISC40, ISC41
-  // ISCx0=1, ISCx1=0  =>  any-edge trigger.
-  EICRA &= ~((1 << ISC21) | (1 << ISC31));
-  EICRA |=  ((1 << ISC20) | (1 << ISC30));
-  EICRB &= ~((1 << ISC41) | (1 << ISC51));
-  EICRB |=  ((1 << ISC40) | (1 << ISC50));
-
-  // Clear any pending flags that accumulated during config.
-  EIFR  = (1 << INTF2) | (1 << INTF3) | (1 << INTF4) | (1 << INTF5);
-
-  // Enable INT2..INT5.
-  EIMSK |= (1 << INT2) | (1 << INT3) | (1 << INT4) | (1 << INT5);
+  DDRK   &= ~0x3F;            // A8..A13 inputs
+  PORTK  &= ~0x3F;            // no internal pull-ups (RX is push-pull)
+  PCICR  |= (1 << PCIE2);     // enable Port K pin-change group
+  PCMSK2 |= 0x3F;             // unmask PCINT16..21
+  rx_prev_state = PINK;
 }
 
 uint16_t rxGet(uint8_t ch) {
