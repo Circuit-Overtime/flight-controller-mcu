@@ -27,6 +27,16 @@ from OpenGL.GL import (
 from OpenGL.GLU import gluLookAt, gluPerspective
 
 
+DISPLAY_HYST_US = 10  # ignore RX/motor jitter smaller than this for display only
+
+
+def _hyst(prev: int, new: int, tol: int) -> int:
+    """Hysteresis filter: keep `prev` unless `new` differs by >= tol.
+    Pure display-side smoothing — the firmware's flight control still uses
+    full-resolution values."""
+    return new if abs(new - prev) >= tol else prev
+
+
 @dataclass
 class ImuState:
     roll: float = 0.0
@@ -51,9 +61,13 @@ class ImuState:
             (self.roll, self.pitch, self.yaw, self.temp_c,
              c1, c2, c3, c4, c5, c6,
              armed, m1, m2, m3, m4, t) = vals
-            self.ch     = (int(c1), int(c2), int(c3), int(c4), int(c5), int(c6))
+            new_ch = (int(c1), int(c2), int(c3), int(c4), int(c5), int(c6))
+            new_m  = (int(m1), int(m2), int(m3), int(m4))
+            self.ch     = tuple(_hyst(p, n, DISPLAY_HYST_US)
+                                for p, n in zip(self.ch, new_ch))
+            self.motors = tuple(_hyst(p, n, DISPLAY_HYST_US)
+                                for p, n in zip(self.motors, new_m))
             self.armed  = (int(armed) != 0)
-            self.motors = (int(m1), int(m2), int(m3), int(m4))
             self.t_ms   = int(t)
         return True
 
@@ -388,8 +402,13 @@ def main():
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
+        # Shift the camera look-at point along the view's up axis so the cube
+        # renders in the lower half of the screen — clear of the motor HUD.
+        cube_drop = 2.0
         gluLookAt(view_eye[0], view_eye[1], view_eye[2],
-                  0.0, 0.0, 0.0,
+                  view_up[0] * cube_drop,
+                  view_up[1] * cube_drop,
+                  view_up[2] * cube_drop,
                   view_up[0], view_up[1], view_up[2])
         draw_axes()
         # IMU orientation, applied yaw (Z) → pitch (Y) → roll (X).
