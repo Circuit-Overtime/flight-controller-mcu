@@ -29,12 +29,6 @@ from OpenGL.GLU import gluLookAt, gluPerspective
 
 @dataclass
 class ImuState:
-    ax: float = 0.0
-    ay: float = 0.0
-    az: float = 0.0
-    gx: float = 0.0
-    gy: float = 0.0
-    gz: float = 0.0
     roll: float = 0.0
     pitch: float = 0.0
     yaw: float = 0.0
@@ -47,17 +41,14 @@ class ImuState:
 
     def update_from_csv(self, line: str) -> bool:
         parts = line.strip().split(",")
-        if len(parts) != 22:
+        if len(parts) != 16:
             return False
         try:
             vals = [float(p) for p in parts]
         except ValueError:
             return False
         with self.lock:
-            (self.ax, self.ay, self.az,
-             self.gx, self.gy, self.gz,
-             self.roll, self.pitch, self.yaw,
-             self.temp_c,
+            (self.roll, self.pitch, self.yaw, self.temp_c,
              c1, c2, c3, c4, c5, c6,
              armed, m1, m2, m3, m4, t) = vals
             self.ch     = (int(c1), int(c2), int(c3), int(c4), int(c5), int(c6))
@@ -68,9 +59,7 @@ class ImuState:
 
     def snapshot(self):
         with self.lock:
-            return (self.ax, self.ay, self.az,
-                    self.gx, self.gy, self.gz,
-                    self.roll, self.pitch, self.yaw,
+            return (self.roll, self.pitch, self.yaw,
                     self.temp_c, self.ch,
                     self.armed, self.motors, self.t_ms)
 
@@ -84,7 +73,7 @@ def serial_reader(port: str, baud: int, state: ImuState, stop: threading.Event):
                     if not raw:
                         continue
                     line = raw.decode("ascii", errors="ignore")
-                    if line.startswith("#") or line.startswith("ax,"):
+                    if line.startswith("#") or line.startswith("roll,"):
                         continue
                     state.update_from_csv(line)
         except serial.SerialException as exc:
@@ -325,7 +314,7 @@ VIEWS = {
 
 def main():
     port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"
-    baud = int(sys.argv[2]) if len(sys.argv) > 2 else 230400
+    baud = int(sys.argv[2]) if len(sys.argv) > 2 else 460800
 
     pygame.init()
     width, height = 1000, 640
@@ -364,8 +353,7 @@ def main():
                 elif event.key in VIEWS:
                     view_name, view_eye, view_up = VIEWS[event.key]
 
-        (ax, ay, az, gx, gy, gz, roll, pitch, yaw,
-         temp_c, ch, armed, motors, t_ms) = state.snapshot()
+        roll, pitch, yaw, temp_c, ch, armed, motors, t_ms = state.snapshot()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()

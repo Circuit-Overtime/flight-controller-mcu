@@ -181,7 +181,10 @@ void setup() {
   calibrateRx();
   last_us    = micros();
   last_fc_us = last_us;
-  Serial.println(F("ax,ay,az,gx,gy,gz,roll,pitch,yaw,temp_c,"
+  // Telemetry CSV: only fields the visualiser actually renders, plus a few
+  // diagnostics. Raw accel/gyro stay in the IMU loop where they're needed
+  // (PIDs) and don't hit the serial wire.
+  Serial.println(F("roll,pitch,yaw,temp_c,"
                    "ch1,ch2,ch3,ch4,ch5,ch6,armed,m1,m2,m3,m4,t_ms"));
 }
 
@@ -247,19 +250,15 @@ void loop() {
     else          motorsDisarm();
   }
 
-  // ---- Telemetry stream (unchanged 17-field CSV for visualizer) -----------
+  // ---- Telemetry stream — slim 16-field CSV ---------------------------
+  // Trimmed to keep TX time per line well under one IMU loop tick so the
+  // visualizer never sees stale data.
   if (now_ms - last_stream_ms >= 1000UL / TELEMETRY_HZ) {
     last_stream_ms = now_ms;
-    Serial.print(ax, 4); Serial.print(',');
-    Serial.print(ay, 4); Serial.print(',');
-    Serial.print(az, 4); Serial.print(',');
-    Serial.print(gx, 3); Serial.print(',');
-    Serial.print(gy, 3); Serial.print(',');
-    Serial.print(gz, 3); Serial.print(',');
-    Serial.print(roll, 2);  Serial.print(',');
-    Serial.print(pitch, 2); Serial.print(',');
-    Serial.print(yaw, 2);   Serial.print(',');
-    Serial.print(temp_c, 2); Serial.print(',');
+    Serial.print(roll, 1);   Serial.print(',');
+    Serial.print(pitch, 1);  Serial.print(',');
+    Serial.print(yaw, 1);    Serial.print(',');
+    Serial.print(temp_c, 1); Serial.print(',');
     for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) {
       uint16_t raw = rxGet(ch);
       if (raw > 0) {

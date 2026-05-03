@@ -10,10 +10,12 @@
 
 
 // ---- Serial telemetry -------------------------------------------------------
-// 230400 baud: ~23 kchar/s, comfortably above the ~15 kchar/s the 22-field
-// CSV needs at 100 Hz. Picked over 250000 because Linux termios rejects
-// non-standard rates (250 kbaud isn't on the kernel's whitelist).
-#define TELEMETRY_BAUD          230400UL
+// 460800 baud halves the per-line transmit time so the Mega TX buffer (64B
+// default) drains fast enough to not block the main loop on telemetry.
+// Combined with dropping unused fields, total wire load is ~7 kchar/s out of
+// the 46 kchar/s the link can carry — IMU read rate isn't held back by
+// serial pacing anymore.
+#define TELEMETRY_BAUD          460800UL
 #define TELEMETRY_HZ            100      // CSV stream rate to host
 
 
