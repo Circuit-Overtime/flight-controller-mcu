@@ -302,9 +302,12 @@ class TextCache:
         return w, h
 
 
-def draw_sticks_hud(width, height, ch):
+def draw_sticks_hud(width, height, ch, stick_labels):
     """Render two stick boxes in screen-space ortho. AETR convention:
-    ch[0]=roll, ch[1]=pitch, ch[2]=throttle, ch[3]=yaw."""
+    ch[0]=roll, ch[1]=pitch, ch[2]=throttle, ch[3]=yaw.
+
+    Each box gets two axis labels — one above (vertical axis) and one to the
+    left of the box (horizontal axis), pre-rendered in stick_labels."""
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
     glOrtho(0, width, height, 0, -1, 1)
     glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
@@ -338,6 +341,20 @@ def draw_sticks_hud(width, height, ch):
     # Right stick: roll (x, ch1) + pitch (y, ch2).
     _stick_box(right_cx, cy, size,
                _centered(ch[0]), _centered(ch[1]), throttle=False)
+
+    # Axis labels around each box.
+    def _label_box(cx_box, vert_label, horiz_label):
+        # vertical-axis label, centered above the box.
+        tex, w, h = stick_labels[vert_label]
+        _draw_textured_quad(tex, cx_box - w / 2,
+                            cy - size / 2 - h - 4, w, h)
+        # horizontal-axis label, vertically centered to the LEFT of the box.
+        tex, w, h = stick_labels[horiz_label]
+        _draw_textured_quad(tex, cx_box - size / 2 - w - 6,
+                            cy - h / 2, w, h)
+
+    _label_box(left_cx,  "throttle", "yaw")
+    _label_box(right_cx, "pitch",    "roll")
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
@@ -374,8 +391,13 @@ def main():
     # the GL context exists).
     label_font   = pygame.font.SysFont("monospace", 18, bold=True)
     value_font   = pygame.font.SysFont("monospace", 14)
+    stick_font   = pygame.font.SysFont("monospace", 14, bold=True)
     motor_labels = init_motor_labels(label_font)
     value_cache  = TextCache(value_font, color=(200, 200, 210))
+    stick_labels = {
+        name: _make_text_texture(stick_font, name, color=(180, 200, 230))
+        for name in ("throttle", "yaw", "pitch", "roll")
+    }
 
     state = ImuState()
     stop = threading.Event()
@@ -417,7 +439,7 @@ def main():
         glRotatef(roll, 1, 0, 0)
         draw_cube()
         draw_motors_hud(width, height, motors, armed, motor_labels, value_cache)
-        draw_sticks_hud(width, height, ch)
+        draw_sticks_hud(width, height, ch, stick_labels)
         pygame.display.flip()
 
         # AETR convention: CH1=Aileron, CH2=Elevator, CH3=Throttle, CH4=Rudder.
