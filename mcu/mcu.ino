@@ -113,6 +113,7 @@ void calibrate() {
     sax += ax; say += ay; saz += az;
     sgx += gx; sgy += gy; sgz += gz;
     got++;
+    ledsUpdate(millis());   // keep CALIB led blinking
     delay(2);
   }
   ax_off = sax / MPU_CALIB_SAMPLES;
@@ -132,6 +133,7 @@ void calibrateRx() {
       if (RX_IS_CENTERED[i] && rxGet(i) == 0) { ready = false; break; }
     }
     if (ready) break;
+    ledsUpdate(millis());
     delay(10);
   }
   uint32_t sums[RX_NUM_CHANNELS]   = {0};
@@ -141,6 +143,7 @@ void calibrateRx() {
       uint16_t v = rxGet(i);
       if (v > 0) { sums[i] += v; counts[i]++; }
     }
+    ledsUpdate(millis());
     delay(5);
   }
   for (uint8_t i = 0; i < RX_NUM_CHANNELS; i++) {
@@ -151,6 +154,10 @@ void calibrateRx() {
     }
   }
 }
+
+// Tick callback for motorsArmEscs() — keeps LED patterns advancing during
+// the ESC startup hold so the user sees the BLINK pattern immediately.
+static void _setupTick() { ledsUpdate(millis()); }
 
 // Apply firmware center offset + light EMA smoothing to a raw RX value,
 // clamped to [1000, 2000]. The FC pipeline calls this every loop.
@@ -186,22 +193,20 @@ void setup() {
   ledsInit();
   batteryInit();
 
-  // System is up — light the STARTUP indicator and keep it on for the rest
-  // of the session.
-  ledStartup(true);
+  // STARTUP led blinks during boot to show the chip is alive even before
+  // any of the slower init steps complete.
+  ledStartupSet(LED_MODE_BLINK);
 
-  // CALIB led on for the duration of IMU + RX calibration so you can tell
-  // when it's safe to move the drone again.
-  ledCalib(true);
-
-  // ESCs need to see DISARM pulse for ~2 s before they accept run commands.
-  // Run that hold while the user (hopefully) keeps the drone still for IMU
-  // calibration anyway.
-  motorsArmEscs();
-
+  // ESC + IMU + RX calibration phase: CALIB led blinks until everything
+  // is settled. ESCs run their startup beeps during motorsArmEscs.
+  ledCalibSet(LED_MODE_BLINK);
+  motorsArmEscs(_setupTick);
   calibrate();
   calibrateRx();
-  ledCalib(false);
+  ledCalibSet(LED_MODE_ON);
+
+  // Boot complete.
+  ledStartupSet(LED_MODE_ON);
   last_us    = micros();
   last_fc_us = last_us;
   // Telemetry CSV: only fields the visualiser actually renders, plus a few
@@ -211,9 +216,25 @@ void setup() {
                    "ch1,ch2,ch3,ch4,ch5,ch6,armed,m1,m2,m3,m4,t_ms"));
 }
 
+// Consecutive IMU read failures. If the I2C bus glitches or the MPU is
+// physically disconnected we'll see this climb; flash the CALIB led when
+// it does. Reset on every successful read.
+static uint16_t imu_fail_streak = 0;
+static const uint16_t IMU_FAIL_FLASH_THRESHOLD = 50;  // ~250 ms of failures
+
 void loop() {
   int16_t rax, ray, raz, rgx, rgy, rgz, rtemp;
-  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz, rtemp)) return;
+  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz, rtemp)) {
+    if (imu_fail_streak < 0xFFFF) imu_fail_streak++;
+    if (imu_fail_streak >= IMU_FAIL_FLASH_THRESHOLD) ledCalibSet(LED_MODE_FLASH_2);
+    ledsUpdate(millis());
+    return;
+  }
+  if (imu_fail_streak >= IMU_FAIL_FLASH_THRESHOLD) {
+    // Recovered — return CALIB to its steady "calibration done" indicator.
+    ledCalibSet(LED_MODE_ON);
+  }
+  imu_fail_streak = 0;
 
   float ax = (rax - ax_off) / MPU_ACCEL_LSB_PER_G;
   float ay = (ray - ay_off) / MPU_ACCEL_LSB_PER_G;
@@ -238,14 +259,16 @@ void loop() {
   uint32_t now_ms = millis();
 
   // ---- Periodic monitoring (battery + chip temperature) -------------------
-  // Cheap to do every loop iteration; the LED writes are idempotent.
-  ledTempHigh(temp_c >= MPU_TEMP_HIGH_C);
+  // TEMP led: solid on while chip is hot, off otherwise.
+  ledTempSet(temp_c >= MPU_TEMP_HIGH_C ? LED_MODE_ON : LED_MODE_OFF);
+  // BATTERY led: blinks while voltage is low (more eye-catching than solid).
   if (now_ms - last_battery_ms >= 1000UL / BATTERY_CHECK_HZ) {
     last_battery_ms = now_ms;
     batteryReadVolts();
-    ledBatLow(batteryIsLow());
+    ledBatterySet(batteryIsLow() ? LED_MODE_BLINK : LED_MODE_OFF);
   }
   last_temp_c = temp_c;
+  ledsUpdate(now_ms);
 
   // ---- Flight controller tick ---------------------------------------------
   if (now_us - last_fc_us >= 1000000UL / FC_LOOP_HZ) {
@@ -253,6 +276,10 @@ void loop() {
 
     bool failsafe = !rxAlive(0, now_us) || !rxAlive(1, now_us) ||
                     !rxAlive(2, now_us) || !rxAlive(3, now_us);
+
+    // STARTUP led flashes on failsafe (RX silent on a flight-critical
+    // channel) — the system is alive but can't be flown safely.
+    ledStartupSet(failsafe ? LED_MODE_FLASH_2 : LED_MODE_ON);
 
     Setpoints sp = controlUpdate(rxCorrected(0), rxCorrected(1),
                                  rxCorrected(2), rxCorrected(3),

@@ -12,12 +12,15 @@ void motorsInit() {
   motorsDisarm();
 }
 
-void motorsArmEscs() {
+void motorsArmEscs(MotorsTickFn tick) {
   // Hold the disarm pulse long enough for cheap ESCs to register it as the
-  // "throttle low" reference and accept run commands afterward.
+  // "throttle low" reference and accept run commands afterward. While we
+  // wait, fire the optional tick callback so callers can keep status LEDs
+  // (or any other periodic indicator) animating.
   uint32_t deadline = millis() + ESC_BOOT_HOLD_MS;
   while (millis() < deadline) {
     motorsDisarm();
+    if (tick) tick();
     delay(20);
   }
 }

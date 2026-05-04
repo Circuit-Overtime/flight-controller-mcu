@@ -5,7 +5,11 @@
 // four BLDC ESCs. Same API as a higher-level motor abstraction so the FC
 // pipeline stays identical when we later swap to OneShot/DShot on Teensy.
 
-void motorsInit();                         // attach pins, send DISARM pulse
-void motorsArmEscs();                      // hold DISARM long enough for ESCs to recognize
-void motorsWrite(const uint16_t out[4]);   // send the four pulses (M1..M4)
-void motorsDisarm();                       // immediately drive all four to DISARM
+// Optional callback fired every ~20 ms during motorsArmEscs so the caller
+// can keep status LEDs animating during the ESC startup hold.
+typedef void (*MotorsTickFn)();
+
+void motorsInit();                                 // attach pins, send DISARM pulse
+void motorsArmEscs(MotorsTickFn tick = nullptr);   // hold DISARM long enough for ESCs to recognize
+void motorsWrite(const uint16_t out[4]);           // send the four pulses (M1..M4)
+void motorsDisarm();                               // immediately drive all four to DISARM
