@@ -90,11 +90,12 @@
 
 // ---- Motor outputs (Servo PWM) ---------------------------------------------
 // All four ESCs run standard 50 Hz / 1000-2000 µs PWM via the Servo library.
-// Note: pins 50 and 52 double as SPI MISO/SCK — using them for motors blocks
-// future SPI peripherals on this Mega. Servo lib doesn't care which digital
-// pin; the choice here matches the user's physical wiring.
+// Note: pin 52 doubles as SPI SCK — using it for a motor blocks future SPI
+// peripherals on this Mega. M2 originally on pin 50 (MISO) but that pin
+// failed to drive ESC2 reliably; moved to pin 44 (Port L, Timer5 OC5C area,
+// no peripheral conflict).
 #define MOTOR_M1_PIN            52       // front-right (CCW)
-#define MOTOR_M2_PIN            50       // rear-right  (CW)
+#define MOTOR_M2_PIN            44       // rear-right  (CW)
 #define MOTOR_M3_PIN            48       // rear-left   (CCW)
 #define MOTOR_M4_PIN            46       // front-left  (CW)
 

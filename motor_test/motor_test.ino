@@ -21,7 +21,7 @@
 //
 // Wiring (matches the main FC sketch):
 //   M1 (front-right, CCW) signal -> pin 52
-//   M2 (rear-right,  CW)  signal -> pin 50
+//   M2 (rear-right,  CW)  signal -> pin 44   (was 50; pin 50 wouldn't drive ESC2)
 //   M3 (rear-left,   CCW) signal -> pin 48
 //   M4 (front-left,  CW)  signal -> pin 46
 //
@@ -32,7 +32,7 @@
 
 #include <Servo.h>
 
-static const uint8_t  MOTOR_PIN[4]   = { 52, 50, 48, 46 };
+static const uint8_t  MOTOR_PIN[4]   = { 52, 44, 48, 46 };
 static const char*    MOTOR_NAME[4]  = { "M1 (front-right, CCW)",
                                          "M2 (rear-right,  CW )",
                                          "M3 (rear-left,   CCW)",
