@@ -323,9 +323,12 @@ def draw_sticks_hud(width, height, ch, stick_labels, value_cache):
 
     size = 160
     margin = 30
+    # Value text takes ~40 px below each box (two lines). Push the box up
+    # so the readout fits inside the window.
+    value_text_room = 44
     left_cx  = margin + size / 2
     right_cx = width - margin - size / 2
-    cy       = height - margin - size / 2
+    cy       = height - margin - value_text_room - size / 2
 
     # Headroom: trim noise near mechanical stick extremes by mapping a slightly
     # narrower band onto full HUD range. Outside the band saturates.
@@ -394,9 +397,9 @@ def main():
     baud = int(sys.argv[2]) if len(sys.argv) > 2 else 460800
 
     pygame.init()
-    # 800 px tall (was 640) leaves room below the stick HUDs for the live RX
-    # pulse-width readout.
-    width, height = 1000, 800
+    # 720 px tall fits on most laptop screens after accounting for OS chrome
+    # while still leaving room under the stick HUDs for the live RX readout.
+    width, height = 1000, 720
     pygame.display.set_mode((width, height), pygame.OPENGL | pygame.DOUBLEBUF)
     pygame.display.set_caption("MPU6050 visualizer")
 
