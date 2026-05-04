@@ -253,6 +253,16 @@ void loop() {
   roll_filt  = COMP_FILTER_ALPHA * (roll_filt  + gx * dt) + (1 - COMP_FILTER_ALPHA) * accel_roll;
   pitch_filt = COMP_FILTER_ALPHA * (pitch_filt + gy * dt) + (1 - COMP_FILTER_ALPHA) * accel_pitch;
   yaw += gz * dt;
+
+  // Sanity guard: a single bad I2C read or weird transient can poison the
+  // comp filter with NaN, after which the IIR feedback keeps it stuck
+  // forever (NaN propagates through every multiply/add). Reset to zero on
+  // detection — better to lose a tick than ride a corrupted filter into
+  // the PID + mixer.
+  if (isnan(roll_filt))  roll_filt  = 0.0f;
+  if (isnan(pitch_filt)) pitch_filt = 0.0f;
+  if (isnan(yaw))        yaw        = 0.0f;
+
   float roll  = roll_filt;
   float pitch = pitch_filt;
 

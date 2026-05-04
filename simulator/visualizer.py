@@ -7,6 +7,7 @@ plus a numeric readout. Run:
 """
 from __future__ import annotations
 
+import math
 import sys
 import threading
 import time
@@ -57,6 +58,12 @@ class ImuState:
             vals = [float(p) for p in parts]
         except ValueError:
             return False
+        # Defensive: if firmware ever streams a NaN (shouldn't happen, but
+        # we have observed it with an MPU glitch), don't let it corrupt the
+        # cube rotation or the live readout.
+        for i in range(len(vals)):
+            if not math.isfinite(vals[i]):
+                vals[i] = 0.0
         with self.lock:
             (self.roll, self.pitch, self.yaw, self.temp_c,
              c1, c2, c3, c4, c5, c6,

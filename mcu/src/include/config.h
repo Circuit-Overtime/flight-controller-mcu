@@ -112,12 +112,13 @@
 
 
 // ---- Stick mapping (post-calibration) --------------------------------------
-// Centered sticks read 1500 ± 400 µs (after firmware center-offset). Throttle
-// stick range is 1100..1900 µs. Anything outside saturates.
+// User's TX physically deflects roughly 1100..1700 us (full stick) on this
+// build, so we cap effective sticks slightly above that to leave a sliver of
+// headroom without wasted dead-zone where the TX literally can't reach.
 #define STICK_DEAD_BAND_US      15        // ±15 µs around center -> zero input
-#define STICK_RANGE_HALF_US     400       // ±this from 1500 = full deflection
+#define STICK_RANGE_HALF_US     300       // ±this from 1500 = full deflection
 #define STICK_THROTTLE_LO_US    1100
-#define STICK_THROTTLE_HI_US    1900
+#define STICK_THROTTLE_HI_US    1800
 
 // Maximum commanded angle (angle mode) and rate (acro / yaw).
 #define MAX_TILT_DEG            25.0f     // ±25° banking from full stick

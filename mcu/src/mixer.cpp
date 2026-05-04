@@ -1,7 +1,12 @@
+#include <math.h>
 #include "include/mixer.h"
 #include "include/config.h"
 
 static inline uint16_t _clamp_us(float v) {
+  // NaN guard: (uint16_t)NaN is undefined and on AVR resolves to 0, which
+  // would silently send a totally invalid pulse to the ESC. Treat NaN as the
+  // safest bet — minimum commandable throttle.
+  if (isnan(v)) return MOTOR_MIN_US;
   if (v < (float)MOTOR_MIN_US) return MOTOR_MIN_US;
   if (v > (float)MOTOR_MAX_US) return MOTOR_MAX_US;
   return (uint16_t)v;
