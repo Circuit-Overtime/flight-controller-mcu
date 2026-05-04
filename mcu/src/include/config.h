@@ -159,3 +159,49 @@
 
 // Failsafe: if any flight-critical channel goes silent for this long, disarm.
 #define FAILSAFE_MS             250
+
+
+// ---- RX smoothing on the FC control path -----------------------------------
+// Light EMA applied to RX values feeding the PIDs (separate from the heavier
+// telemetry-display EMA). Higher = more responsive, lower = smoother but
+// laggier. 0.7 -> ~30 ms time constant; doesn't fight the deadband but
+// rounds off any edge-case sample-to-sample jitter from the receiver.
+#define RX_FC_EMA_ALPHA         0.7f
+
+
+// =============================================================================
+// MONITORING / INDICATORS
+// =============================================================================
+
+// ---- Status LEDs -----------------------------------------------------------
+// Each LED is wired pin -> resistor -> LED -> GND, so writing HIGH lights it.
+// Choice of pins keeps them away from I2C (20/21), RX (A8..A13), and the four
+// ESC outputs (52, 44, 48, 46).
+#define LED_STARTUP_PIN         24    // solid on once boot completes
+#define LED_CALIB_PIN           26    // on during IMU + RX calibration
+#define LED_TEMP_PIN            28    // on when MPU6050 chip temp > threshold
+#define LED_BATTERY_PIN         30    // on when battery below threshold
+
+
+// ---- MPU6050 chip-temperature warning --------------------------------------
+// The on-die thermometer reads a few degrees above ambient because it sits
+// next to active silicon. 40 °C is a reasonable "running warm" threshold;
+// raise to 55 °C if running outdoors in the sun is normal.
+#define MPU_TEMP_HIGH_C         40.0f
+
+
+// ---- Battery voltage monitoring (3S Li-ION via voltage divider on A0) ------
+// Divider: battery+ -> R_TOP -> A0 node -> R_BOTTOM -> GND.
+// V_adc      = V_bat * R_BOTTOM / (R_TOP + R_BOTTOM)
+// V_bat      = V_adc * (R_TOP + R_BOTTOM) / R_BOTTOM
+// At 12.6 V (full 3S): V_adc = 12.6 * 3.3/13.3 = 3.13 V — safely below 5 V.
+#define BATTERY_ADC_PIN         A0
+#define BATTERY_R_TOP_OHM       10000.0f
+#define BATTERY_R_BOTTOM_OHM    3300.0f
+#define BATTERY_ADC_REF_V       5.0f       // Mega ADC reference; AVCC = 5 V
+#define BATTERY_ADC_RES         1024       // 10-bit ADC
+
+// Low-battery threshold for 3S Li-ION (3.0 V/cell cutoff = 9.0 V critical;
+// warn at 10.0 V which is roughly 25 % remaining on a Li-ION discharge curve).
+#define BATTERY_LOW_V           10.0f
+#define BATTERY_CHECK_HZ        5          // poll the ADC at this rate

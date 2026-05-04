@@ -28,6 +28,8 @@
 #include "src/include/mixer.h"
 #include "src/include/motors.h"
 #include "src/include/control.h"
+#include "src/include/leds.h"
+#include "src/include/battery.h"
 
 // MPU6050 register addresses (datasheet "Register Map", §3).
 static const uint8_t REG_PWR_MGMT = 0x6B;
@@ -53,11 +55,18 @@ uint16_t motor_out[4]   = {MOTOR_DISARM_US, MOTOR_DISARM_US,
                            MOTOR_DISARM_US, MOTOR_DISARM_US};
 bool     fc_armed       = false;
 
-// RX center-calibration state. The EMA below smooths CSV telemetry only;
-// the FC reads raw rxGet() with offsets applied for minimum latency.
+// RX center-calibration state. The telemetry EMA (rx_ema) smooths the CSV
+// stream for the visualizer; the FC EMA (rx_fc_ema) is a lighter filter on
+// values feeding the PIDs so motor commands aren't twitchy at sub-microsecond
+// jitter without adding meaningful latency.
 static const bool RX_IS_CENTERED[RX_NUM_CHANNELS] = RX_IS_CENTERED_INIT;
 float    rx_ema[RX_NUM_CHANNELS]    = {0};
+float    rx_fc_ema[RX_NUM_CHANNELS] = {0};
 int16_t  rx_offset[RX_NUM_CHANNELS] = {0};
+
+// Battery / temperature monitor cadence.
+uint32_t last_battery_ms = 0;
+float    last_temp_c     = 0.0f;
 
 // Flight controllers: one outer angle loop per axis (P-only), one inner rate
 // loop per axis (full PID). Yaw has no outer loop — yaw is rate-controlled.
@@ -143,15 +152,18 @@ void calibrateRx() {
   }
 }
 
-// Apply firmware center offset to a raw RX value, clamped to [1000, 2000].
-// Used by the FC pipeline (no EMA — that's display-only).
+// Apply firmware center offset + light EMA smoothing to a raw RX value,
+// clamped to [1000, 2000]. The FC pipeline calls this every loop.
 static uint16_t rxCorrected(uint8_t ch) {
   uint16_t raw = rxGet(ch);
   if (raw == 0) return 0;
   int32_t v = (int32_t)raw - rx_offset[ch];
   if (v < 1000) v = 1000;
   if (v > 2000) v = 2000;
-  return (uint16_t)v;
+  if (rx_fc_ema[ch] == 0.0f) rx_fc_ema[ch] = (float)v;
+  else rx_fc_ema[ch] = RX_FC_EMA_ALPHA * (float)v
+                     + (1.0f - RX_FC_EMA_ALPHA) * rx_fc_ema[ch];
+  return (uint16_t)rx_fc_ema[ch];
 }
 
 // ---- setup / loop -----------------------------------------------------------
@@ -171,6 +183,16 @@ void setup() {
   rxInit();
   motorsInit();
   controlInit();
+  ledsInit();
+  batteryInit();
+
+  // System is up — light the STARTUP indicator and keep it on for the rest
+  // of the session.
+  ledStartup(true);
+
+  // CALIB led on for the duration of IMU + RX calibration so you can tell
+  // when it's safe to move the drone again.
+  ledCalib(true);
 
   // ESCs need to see DISARM pulse for ~2 s before they accept run commands.
   // Run that hold while the user (hopefully) keeps the drone still for IMU
@@ -179,6 +201,7 @@ void setup() {
 
   calibrate();
   calibrateRx();
+  ledCalib(false);
   last_us    = micros();
   last_fc_us = last_us;
   // Telemetry CSV: only fields the visualiser actually renders, plus a few
@@ -213,6 +236,16 @@ void loop() {
   float pitch = pitch_filt;
 
   uint32_t now_ms = millis();
+
+  // ---- Periodic monitoring (battery + chip temperature) -------------------
+  // Cheap to do every loop iteration; the LED writes are idempotent.
+  ledTempHigh(temp_c >= MPU_TEMP_HIGH_C);
+  if (now_ms - last_battery_ms >= 1000UL / BATTERY_CHECK_HZ) {
+    last_battery_ms = now_ms;
+    batteryReadVolts();
+    ledBatLow(batteryIsLow());
+  }
+  last_temp_c = temp_c;
 
   // ---- Flight controller tick ---------------------------------------------
   if (now_us - last_fc_us >= 1000000UL / FC_LOOP_HZ) {
