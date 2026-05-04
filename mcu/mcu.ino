@@ -304,6 +304,11 @@ void loop() {
       ledCalibSet(sp.armed ? LED_MODE_ON : LED_MODE_BLINK);
     }
 
+    // Debug: log arm/disarm edges so the visualiser-side behaviour can be
+    // matched against firmware state. Visualiser ignores '#' lines.
+    if (sp.just_armed)    Serial.println(F("# ARMED"));
+    if (sp.just_disarmed) Serial.println(F("# DISARMED"));
+
     // Wipe PID state every tick while disarmed so integrators can't wind up
     // from IMU drift / mounting-bias errors. This makes the displayed motor
     // commands a pure P-response in disarmed mode (instantaneous, repeatable),

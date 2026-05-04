@@ -394,7 +394,9 @@ def main():
     baud = int(sys.argv[2]) if len(sys.argv) > 2 else 460800
 
     pygame.init()
-    width, height = 1000, 640
+    # 800 px tall (was 640) leaves room below the stick HUDs for the live RX
+    # pulse-width readout.
+    width, height = 1000, 800
     pygame.display.set_mode((width, height), pygame.OPENGL | pygame.DOUBLEBUF)
     pygame.display.set_caption("MPU6050 visualizer")
 

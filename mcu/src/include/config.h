@@ -112,13 +112,15 @@
 
 
 // ---- Stick mapping (post-calibration) --------------------------------------
-// User's TX physically deflects roughly 1100..1700 us (full stick) on this
-// build, so we cap effective sticks slightly above that to leave a sliver of
-// headroom without wasted dead-zone where the TX literally can't reach.
+// User's TX physical ranges (measured from rx_profile + visualiser):
+//   throttle stick:           ~1100..1700 us
+//   yaw / pitch / roll stick: ~1100..1800 us (centered at 1500)
+// Caps below match exactly so anything past the TX's physical max saturates
+// at the same firmware-side value the FC actually sees.
 #define STICK_DEAD_BAND_US      15        // ±15 µs around center -> zero input
-#define STICK_RANGE_HALF_US     300       // ±this from 1500 = full deflection
+#define STICK_RANGE_HALF_US     300       // 1500 ± 300 -> 1200..1800 effective
 #define STICK_THROTTLE_LO_US    1100
-#define STICK_THROTTLE_HI_US    1800
+#define STICK_THROTTLE_HI_US    1700      // throttle saturates here
 
 // Maximum commanded angle (angle mode) and rate (acro / yaw).
 #define MAX_TILT_DEG            25.0f     // ±25° banking from full stick
@@ -154,13 +156,13 @@
 // Arm gesture: throttle low + yaw stick held to a pre-configured side for N ms.
 // Disarm: throttle low + opposite yaw stick.
 //
-// Thresholds are sized for this user's TX which saturates around 1800 us at
-// full yaw stick (STICK_RANGE_HALF_US = 300). Anything ≥ ARM_YAW_HIGH_US for
-// ARM_HOLD_MS triggers arming; the cushion below 1800 means a slightly less
-// than full deflection still works.
-#define ARM_THROTTLE_MAX_US     1080      // throttle must be ≤ this to arm
-#define ARM_YAW_LOW_US          1300      // yaw stick "held left"  (≤ this)
-#define ARM_YAW_HIGH_US         1700      // yaw stick "held right" (≥ this)
+// Arm gesture: throttle ≤ 1100 (i.e. fully bottom) AND yaw ≥ 1800 (i.e.
+// fully right) for ARM_HOLD_MS. Disarm: throttle ≤ 1100 AND yaw ≤ 1200
+// (fully left) for ARM_HOLD_MS. Numbers match the TX physical extremes
+// directly so the gesture always triggers when the user thinks it should.
+#define ARM_THROTTLE_MAX_US     1100      // throttle ≤ this
+#define ARM_YAW_LOW_US          1200      // yaw stick "held left"  (≤ this)
+#define ARM_YAW_HIGH_US         1800      // yaw stick "held right" (≥ this)
 #define ARM_HOLD_MS             1500      // gesture hold time
 
 // Failsafe: if any flight-critical channel goes silent for this long, disarm.
