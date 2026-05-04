@@ -309,12 +309,13 @@ class TextCache:
         return w, h
 
 
-def draw_sticks_hud(width, height, ch, stick_labels):
+def draw_sticks_hud(width, height, ch, stick_labels, value_cache):
     """Render two stick boxes in screen-space ortho. AETR convention:
     ch[0]=roll, ch[1]=pitch, ch[2]=throttle, ch[3]=yaw.
 
-    Each box gets two axis labels — one above (vertical axis) and one to the
-    left of the box (horizontal axis), pre-rendered in stick_labels."""
+    Each box gets two axis labels (above + left) and a two-line live readout
+    BELOW showing the actual RX pulse-width µs the firmware is seeing —
+    useful for debugging arming thresholds and stick-range issues."""
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
     glOrtho(0, width, height, 0, -1, 1)
     glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity()
@@ -349,8 +350,8 @@ def draw_sticks_hud(width, height, ch, stick_labels):
     _stick_box(right_cx, cy, size,
                _centered(ch[0]), _centered(ch[1]), throttle=False)
 
-    # Axis labels around each box.
-    def _label_box(cx_box, vert_label, horiz_label):
+    # Axis labels around each box, plus live µs values below.
+    def _decorate_box(cx_box, vert_label, vert_value, horiz_label, horiz_value):
         # vertical-axis label, centered above the box.
         tex, w, h = stick_labels[vert_label]
         _draw_textured_quad(tex, cx_box - w / 2,
@@ -359,9 +360,18 @@ def draw_sticks_hud(width, height, ch, stick_labels):
         tex, w, h = stick_labels[horiz_label]
         _draw_textured_quad(tex, cx_box - size / 2 - w - 6,
                             cy - h / 2, w, h)
+        # Live RX values below the box (two lines, vertical axis on top).
+        v_top = f"{vert_label[0].upper()}={vert_value}"
+        v_bot = f"{horiz_label[0].upper()}={horiz_value}"
+        _, wt, ht = value_cache.get(v_top)
+        _, wb, hb = value_cache.get(v_bot)
+        y_top = cy + size / 2 + 4
+        y_bot = y_top + ht + 2
+        value_cache.draw(v_top, cx_box - wt / 2, y_top)
+        value_cache.draw(v_bot, cx_box - wb / 2, y_bot)
 
-    _label_box(left_cx,  "throttle", "yaw")
-    _label_box(right_cx, "pitch",    "roll")
+    _decorate_box(left_cx,  "throttle", ch[2], "yaw",  ch[3])
+    _decorate_box(right_cx, "pitch",    ch[1], "roll", ch[0])
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
@@ -446,7 +456,7 @@ def main():
         glRotatef(roll, 1, 0, 0)
         draw_cube()
         draw_motors_hud(width, height, motors, armed, motor_labels, value_cache)
-        draw_sticks_hud(width, height, ch, stick_labels)
+        draw_sticks_hud(width, height, ch, stick_labels, value_cache)
         pygame.display.flip()
 
         # AETR convention: CH1=Aileron, CH2=Elevator, CH3=Throttle, CH4=Rudder.
