@@ -9,6 +9,7 @@
 static bool     armed_;
 static uint32_t gesture_start_ms_;
 static uint16_t failsafe_streak_;   // consecutive failsafe-true ticks
+static uint32_t settle_until_ms_;   // 0 once post-arm settle window is over
 
 // A single tick of failsafe shouldn't kill an in-progress arm gesture —
 // FlySky RXs occasionally drop one frame. Require this many consecutive
@@ -19,6 +20,7 @@ void controlInit() {
   armed_            = false;
   gesture_start_ms_ = 0;
   failsafe_streak_  = 0;
+  settle_until_ms_  = 0;
 }
 
 // Map a centered stick (1500 ± half-range) to [-1, +1] with a deadband
@@ -89,15 +91,24 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
     }
   }
 
+  // On the rising edge of armed, start a settle window during which roll /
+  // pitch / yaw setpoints are forced to zero — pilot's hand is still on the
+  // arming gesture (yaw stick far right), so honoring it would immediately
+  // command a yaw spin and drive M1+M3 up while M2+M4 hit the floor.
+  if ((!was_armed) && armed_) {
+    settle_until_ms_ = now_ms + POST_ARM_SETTLE_MS;
+  }
+  bool settling = (now_ms < settle_until_ms_);
+
   // Map sticks to setpoints. Angle mode for roll/pitch; rate mode for yaw.
   float roll_n  = _stickNorm(roll_us);
   float pitch_n = _stickNorm(pitch_us);
   float yaw_n   = _stickNorm(yaw_us);
 
   Setpoints sp;
-  sp.angle_roll_deg  =  roll_n  * MAX_TILT_DEG;
-  sp.angle_pitch_deg =  pitch_n * MAX_TILT_DEG;
-  sp.yaw_rate_dps    =  yaw_n   * MAX_YAW_RATE_DPS;
+  sp.angle_roll_deg  =  settling ? 0.0f : (roll_n  * MAX_TILT_DEG);
+  sp.angle_pitch_deg =  settling ? 0.0f : (pitch_n * MAX_TILT_DEG);
+  sp.yaw_rate_dps    =  settling ? 0.0f : (yaw_n   * MAX_YAW_RATE_DPS);
   sp.throttle_us     =  _throttleClamp(throttle_us);
   sp.armed           =  armed_;
   sp.just_armed      = (!was_armed) && armed_;

@@ -105,7 +105,11 @@
 // Pulse widths sent to ESCs.
 #define MOTOR_DISARM_US         1000     // ESCs MUST see this at boot to arm
 #define MOTOR_IDLE_US           1080     // armed but barely spinning
-#define MOTOR_MIN_US            1100     // minimum commandable in-flight throttle
+#define MOTOR_MIN_US            1130     // minimum commandable in-flight throttle
+                                          // (above stiction threshold so all 4
+                                          //  motors keep spinning when one
+                                          //  side of the mix would otherwise
+                                          //  fall below the spin-up point)
 #define MOTOR_MAX_US            1900     // capped below 2000 to leave PID headroom
 
 // SparkFun ESC needs THROTTLE_LOW for ~1 s after powering up to recognize the
@@ -167,6 +171,13 @@
 #define ARM_YAW_LOW_US          1200      // yaw stick "held left"  (≤ this)
 #define ARM_YAW_HIGH_US         1800      // yaw stick "held right" (≥ this)
 #define ARM_HOLD_MS             1500      // gesture hold time
+
+// After arming completes, ignore roll / pitch / yaw setpoints for this long.
+// Throttle still works normally. Gives the pilot time to release the yaw
+// stick from the arming gesture before stick deflections start commanding
+// the drone — without this, motors would snap to a yaw mix the moment arming
+// fires because the user's hand is still on the gesture.
+#define POST_ARM_SETTLE_MS      1000
 
 // Failsafe: if any flight-critical channel goes silent for this long, disarm.
 #define FAILSAFE_MS             250
