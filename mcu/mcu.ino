@@ -199,13 +199,14 @@ void setup() {
 
   // ESC + IMU + RX calibration phase: CALIB led blinks until everything
   // is settled. ESCs run their startup beeps during motorsArmEscs.
+  // CALIB stays in BLINK after calibration completes — we only switch to
+  // ON once the user actually arms via the TX gesture.
   ledCalibSet(LED_MODE_BLINK);
   motorsArmEscs(_setupTick);
   calibrate();
   calibrateRx();
-  ledCalibSet(LED_MODE_ON);
 
-  // Boot complete.
+  // Boot complete (CALIB still blinking, waiting for arm).
   ledStartupSet(LED_MODE_ON);
   last_us    = micros();
   last_fc_us = last_us;
@@ -294,6 +295,14 @@ void loop() {
     Setpoints sp = controlUpdate(rxCorrected(0), rxCorrected(1),
                                  rxCorrected(2), rxCorrected(3),
                                  failsafe, now_ms);
+
+    // CALIB led tracks the armed state: solid when armed (ready to fly),
+    // blinking when disarmed (calibrated but waiting for arm gesture). The
+    // IMU-fault FLASH_2 in the IMU read path overrides this if it triggers
+    // — we only set ON/BLINK here, never override the FLASH_2.
+    if (imu_fail_streak < IMU_FAIL_FLASH_THRESHOLD) {
+      ledCalibSet(sp.armed ? LED_MODE_ON : LED_MODE_BLINK);
+    }
 
     // Wipe PID state every tick while disarmed so integrators can't wind up
     // from IMU drift / mounting-bias errors. This makes the displayed motor

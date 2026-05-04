@@ -153,9 +153,14 @@
 // ---- Arming / safety -------------------------------------------------------
 // Arm gesture: throttle low + yaw stick held to a pre-configured side for N ms.
 // Disarm: throttle low + opposite yaw stick.
+//
+// Thresholds are sized for this user's TX which saturates around 1800 us at
+// full yaw stick (STICK_RANGE_HALF_US = 300). Anything ≥ ARM_YAW_HIGH_US for
+// ARM_HOLD_MS triggers arming; the cushion below 1800 means a slightly less
+// than full deflection still works.
 #define ARM_THROTTLE_MAX_US     1080      // throttle must be ≤ this to arm
-#define ARM_YAW_LOW_US          1150      // yaw stick "held left"
-#define ARM_YAW_HIGH_US         1850      // yaw stick "held right"
+#define ARM_YAW_LOW_US          1300      // yaw stick "held left"  (≤ this)
+#define ARM_YAW_HIGH_US         1700      // yaw stick "held right" (≥ this)
 #define ARM_HOLD_MS             1500      // gesture hold time
 
 // Failsafe: if any flight-critical channel goes silent for this long, disarm.
