@@ -8,10 +8,17 @@
 
 static bool     armed_;
 static uint32_t gesture_start_ms_;
+static uint16_t failsafe_streak_;   // consecutive failsafe-true ticks
+
+// A single tick of failsafe shouldn't kill an in-progress arm gesture —
+// FlySky RXs occasionally drop one frame. Require this many consecutive
+// failsafe ticks before we treat it as a real signal loss and disarm.
+static const uint16_t FAILSAFE_DEBOUNCE_TICKS = 4;
 
 void controlInit() {
   armed_            = false;
   gesture_start_ms_ = 0;
+  failsafe_streak_  = 0;
 }
 
 // Map a centered stick (1500 ± half-range) to [-1, +1] with a deadband
@@ -39,8 +46,17 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
                         bool failsafe, uint32_t now_ms) {
   bool was_armed = armed_;
 
-  // Failsafe: drop arm immediately and zero the gesture timer.
+  // Failsafe: only act on it after FAILSAFE_DEBOUNCE_TICKS consecutive ticks
+  // — a single missed PWM frame from the RX shouldn't reset arming or kill
+  // the in-progress gesture timer.
   if (failsafe) {
+    if (failsafe_streak_ < 0xFFFF) failsafe_streak_++;
+  } else {
+    failsafe_streak_ = 0;
+  }
+  bool real_failsafe = (failsafe_streak_ >= FAILSAFE_DEBOUNCE_TICKS);
+
+  if (real_failsafe) {
     armed_            = false;
     gesture_start_ms_ = 0;
   } else {

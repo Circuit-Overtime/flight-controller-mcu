@@ -63,7 +63,10 @@
 #define RX_PULSE_MAX_US         2200
 
 // A channel is "alive" if it has produced a valid pulse in the last N µs.
-#define RX_ALIVE_TIMEOUT_US     100000UL // 100 ms = 5 PWM frames at 50 Hz
+// 100 ms (5 PWM frames) was tight enough that an occasional dropped frame
+// from the FlySky RX could trip the arming gesture timer; 250 ms = 12 frames
+// of tolerance and matches FAILSAFE_MS so the two thresholds are unified.
+#define RX_ALIVE_TIMEOUT_US     250000UL // 250 ms
 
 // Output smoothing + center calibration.
 #define RX_EMA_ALPHA            0.20f    // lower = smoother but laggier
