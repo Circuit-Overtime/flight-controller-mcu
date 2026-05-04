@@ -309,6 +309,21 @@ void loop() {
     if (sp.just_armed)    Serial.println(F("# ARMED"));
     if (sp.just_disarmed) Serial.println(F("# DISARMED"));
 
+    // Live arming diagnostics every 500 ms while disarmed — shows the FC's
+    // view of throttle and yaw plus the boolean conditions that gate the
+    // arming gesture. Lets us see exactly why the gesture isn't completing.
+    static uint32_t last_arm_diag_ms = 0;
+    if (!sp.armed && now_ms - last_arm_diag_ms > 500) {
+      last_arm_diag_ms = now_ms;
+      uint16_t thr = rxCorrected(2);
+      uint16_t yaw_us_r = rxCorrected(3);
+      Serial.print(F("# arm-diag thr=")); Serial.print(thr);
+      Serial.print(F(" yaw="));           Serial.print(yaw_us_r);
+      Serial.print(F(" thr_low="));       Serial.print(thr      <= ARM_THROTTLE_MAX_US ? 1 : 0);
+      Serial.print(F(" yaw_right="));     Serial.print(yaw_us_r >= ARM_YAW_HIGH_US    ? 1 : 0);
+      Serial.print(F(" failsafe="));      Serial.println(failsafe ? 1 : 0);
+    }
+
     // Wipe PID state every tick while disarmed so integrators can't wind up
     // from IMU drift / mounting-bias errors. This makes the displayed motor
     // commands a pure P-response in disarmed mode (instantaneous, repeatable),
