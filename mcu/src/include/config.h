@@ -10,13 +10,11 @@
 
 
 // ---- Serial telemetry -------------------------------------------------------
-// 460800 baud halves the per-line transmit time so the Mega TX buffer (64B
-// default) drains fast enough to not block the main loop on telemetry.
-// Combined with dropping unused fields, total wire load is ~7 kchar/s out of
-// the 46 kchar/s the link can carry — IMU read rate isn't held back by
-// serial pacing anymore.
+// Extended tuning telemetry includes raw IMU, RX health, setpoints, and PID
+// terms. At 50 Hz it stays comfortably below the 46 kchar/s wire capacity and
+// limits serial blocking on the Mega's small TX buffer.
 #define TELEMETRY_BAUD          460800UL
-#define TELEMETRY_HZ            100      // CSV stream rate to host
+#define TELEMETRY_HZ            50       // extended CSV stream rate to host
 
 
 // ---- IMU: MPU6050 over I2C --------------------------------------------------
@@ -83,9 +81,9 @@
 // =============================================================================
 // FLIGHT CONTROLLER
 // =============================================================================
-// Airframe: F450, X-quad, 450 mm motor-to-motor, ~900 g AUW estimated.
-// Power:    3S 11.1 V LiION, 1400 KV BLDC, 30 A SparkFun ESC.
-// Mode:     indoor self-leveling hover.
+// Airframe: F450, X-quad, 450 mm motor-to-motor, ~1002 g AUW estimated.
+// Power:    3S 11.1 V, 1400 KV BLDC, 10x4.5 props, 30 A SparkFun ESC.
+// Mode:     low first-flight test in self-leveling mode. See BOM.md.
 
 // ---- Loop rates -------------------------------------------------------------
 #define FC_LOOP_HZ              200      // inner rate-PID loop frequency (Hz)
@@ -110,12 +108,8 @@
 
 // Pulse widths sent to ESCs.
 #define MOTOR_DISARM_US         1000     // ESCs MUST see this at boot to arm
-#define MOTOR_MIN_US            1130     // minimum commandable in-flight throttle
-                                          // (above stiction threshold so all 4
-                                          //  motors keep spinning when one
-                                          //  side of the mix would otherwise
-                                          //  fall below the spin-up point)
-#define MOTOR_MAX_US            1900     // capped below 2000 to leave PID headroom
+#define MOTOR_MIN_US            1200     // measured continuous-spin floor
+#define MOTOR_MAX_US            1800     // measured stable upper command
 
 // SparkFun ESC needs THROTTLE_LOW for ~1 s after powering up to recognize the
 // signal; we send MOTOR_DISARM_US continuously for this duration before the

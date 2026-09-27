@@ -67,6 +67,7 @@ int16_t  rx_offset[RX_NUM_CHANNELS] = {0};
 // Battery / temperature monitor cadence.
 uint32_t last_battery_ms = 0;
 float    last_temp_c     = 0.0f;
+float    last_battery_v  = 0.0f;
 
 // Flight controllers: one outer angle loop per axis (P-only), one inner rate
 // loop per axis (full PID). Yaw has no outer loop — yaw is rate-controlled.
@@ -216,11 +217,17 @@ void setup() {
   ledStartupSet(LED_MODE_ON);
   last_us    = micros();
   last_fc_us = last_us;
-  // Telemetry CSV: only fields the visualiser actually renders, plus a few
-  // diagnostics. Raw accel/gyro stay in the IMU loop where they're needed
-  // (PIDs) and don't hit the serial wire.
+  // The first 16 fields retain the visualizer's original schema. Remaining
+  // fields provide raw control data for offline tuning and fault diagnosis.
   Serial.println(F("roll,pitch,yaw,temp_c,"
-                   "ch1,ch2,ch3,ch4,ch5,ch6,armed,m1,m2,m3,m4,t_ms"));
+                   "ch1,ch2,ch3,ch4,ch5,ch6,armed,m1,m2,m3,m4,t_ms,"
+                   "ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,"
+                   "sp_roll_deg,sp_pitch_deg,sp_yaw_dps,sp_throttle_us,"
+                   "sp_roll_rate_dps,sp_pitch_rate_dps,"
+                   "pid_roll_us,pid_pitch_us,pid_yaw_us,dt_us,"
+                   "failsafe,battery_v,"
+                   "raw_ch1,raw_ch2,raw_ch3,raw_ch4,raw_ch5,raw_ch6,"
+                   "rx_alive_mask,reject_ch1,reject_ch2,reject_ch3,reject_ch4"));
 }
 
 // Consecutive IMU read failures. If the I2C bus glitches or the MPU is
@@ -304,7 +311,7 @@ void loop() {
   // BATTERY led: blinks while voltage is low (more eye-catching than solid).
   if (now_ms - last_battery_ms >= 1000UL / BATTERY_CHECK_HZ) {
     last_battery_ms = now_ms;
-    batteryReadVolts();
+    last_battery_v = batteryReadVolts();
     ledBatterySet(batteryIsLow() ? LED_MODE_BLINK : LED_MODE_OFF);
   }
   last_temp_c = temp_c;
@@ -370,17 +377,19 @@ void loop() {
     fc_armed = sp.armed;
     if (fc_armed) motorsWrite(motor_out);
     else          motorsDisarm();
-  // ---- Telemetry stream — slim 16-field CSV ---------------------------
-  // Trimmed to keep TX time per line well under one IMU loop tick so the
-  // visualizer never sees stale data.
+  // ---- Extended tuning telemetry -----------------------------------------
+  // The visualizer consumes the stable first 16 fields; capture_telemetry.py
+  // records every field for RX, IMU, controller, and saturation analysis.
   if (now_ms - last_stream_ms >= 1000UL / TELEMETRY_HZ) {
     last_stream_ms = now_ms;
     Serial.print(roll, 1);   Serial.print(',');
     Serial.print(pitch, 1);  Serial.print(',');
     Serial.print(yaw, 1);    Serial.print(',');
     Serial.print(temp_c, 1); Serial.print(',');
+    uint16_t raw_rx[RX_NUM_CHANNELS];
     for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) {
       uint16_t raw = rxGet(ch);
+      raw_rx[ch] = raw;
       if (raw > 0) {
         rx_ema[ch] = (rx_ema[ch] == 0)
             ? raw
@@ -400,6 +409,40 @@ void loop() {
     Serial.print(motor_out[1]); Serial.print(',');
     Serial.print(motor_out[2]); Serial.print(',');
     Serial.print(motor_out[3]); Serial.print(',');
-    Serial.println(now_ms);
+    Serial.print(now_ms);       Serial.print(',');
+
+    Serial.print(ax, 3); Serial.print(',');
+    Serial.print(ay, 3); Serial.print(',');
+    Serial.print(az, 3); Serial.print(',');
+    Serial.print(gx, 2); Serial.print(',');
+    Serial.print(gy, 2); Serial.print(',');
+    Serial.print(gz, 2); Serial.print(',');
+
+    Serial.print(sp.angle_roll_deg, 2);  Serial.print(',');
+    Serial.print(sp.angle_pitch_deg, 2); Serial.print(',');
+    Serial.print(sp.yaw_rate_dps, 2);    Serial.print(',');
+    Serial.print(sp.throttle_us, 1);     Serial.print(',');
+    Serial.print(roll_rate_sp, 2);       Serial.print(',');
+    Serial.print(pitch_rate_sp, 2);      Serial.print(',');
+    Serial.print(roll_us, 2);            Serial.print(',');
+    Serial.print(pitch_us, 2);           Serial.print(',');
+    Serial.print(yaw_us, 2);             Serial.print(',');
+    Serial.print((uint32_t)(dt * 1000000.0f)); Serial.print(',');
+    Serial.print(failsafe ? 1 : 0);      Serial.print(',');
+    Serial.print(last_battery_v, 2);     Serial.print(',');
+
+    for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) {
+      Serial.print(raw_rx[ch]);
+      Serial.print(',');
+    }
+    uint8_t alive_mask = 0;
+    for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) {
+      if (rxAlive(ch, now_us)) alive_mask |= (uint8_t)(1U << ch);
+    }
+    Serial.print(alive_mask); Serial.print(',');
+    Serial.print(rxRejected(0)); Serial.print(',');
+    Serial.print(rxRejected(1)); Serial.print(',');
+    Serial.print(rxRejected(2)); Serial.print(',');
+    Serial.println(rxRejected(3));
   }
 }

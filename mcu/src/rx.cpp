@@ -21,6 +21,7 @@
 static volatile uint32_t rx_rise[RX_NUM_CHANNELS]        = {0};
 static volatile uint16_t rx_pulse[RX_NUM_CHANNELS]       = {0};
 static volatile uint32_t rx_last_update[RX_NUM_CHANNELS] = {0};
+static volatile uint16_t rx_rejected[RX_NUM_CHANNELS]    = {0};
 static volatile uint8_t  rx_prev_state                   = 0;
 
 ISR(PCINT2_vect) {
@@ -35,10 +36,12 @@ ISR(PCINT2_vect) {
     if (state & mask) {
       rx_rise[i] = now;
     } else if (rx_rise[i] != 0) {
-      uint16_t width = (uint16_t)(now - rx_rise[i]);
+      uint32_t width = now - rx_rise[i];
       if (width >= RX_PULSE_MIN_US && width <= RX_PULSE_MAX_US) {
-        rx_pulse[i]       = width;
+        rx_pulse[i]       = (uint16_t)width;
         rx_last_update[i] = now;
+      } else if (rx_rejected[i] < 0xFFFF) {
+        rx_rejected[i]++;
       }
     }
   }
@@ -67,4 +70,12 @@ bool rxAlive(uint8_t ch, uint32_t now_us) {
   SREG = s;
   if (last == 0) return false;
   return (now_us - last) < RX_ALIVE_TIMEOUT_US;
+}
+
+uint16_t rxRejected(uint8_t ch) {
+  if (ch >= RX_NUM_CHANNELS) return 0;
+  uint8_t s = SREG; cli();
+  uint16_t count = rx_rejected[ch];
+  SREG = s;
+  return count;
 }

@@ -3,7 +3,7 @@
 Reads CSV stream from the Arduino over serial and renders an orientation cube
 plus a numeric readout. Run:
 
-    python visualizer.py /dev/ttyACM0 115200
+    python visualizer.py /dev/ttyACM0 460800
 """
 from __future__ import annotations
 
@@ -52,10 +52,12 @@ class ImuState:
 
     def update_from_csv(self, line: str) -> bool:
         parts = line.strip().split(",")
-        if len(parts) != 16:
+        if len(parts) < 16:
             return False
         try:
-            vals = [float(p) for p in parts]
+            # The firmware may append tuning fields; the original first 16
+            # fields are a stable compatibility prefix for this visualizer.
+            vals = [float(p) for p in parts[:16]]
         except ValueError:
             return False
         # Defensive: if firmware ever streams a NaN (shouldn't happen, but

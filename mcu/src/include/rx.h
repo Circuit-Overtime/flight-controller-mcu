@@ -7,5 +7,6 @@
 // external-interrupt based, or hardware-Input-Capture based.
 
 void     rxInit();
-uint16_t rxGet(uint8_t ch);                     // pulse width in µs; 0 if never seen
+uint16_t rxGet(uint8_t ch);                     // last valid pulse; 0 if never seen
 bool     rxAlive(uint8_t ch, uint32_t now_us);  // false if no recent valid pulse
+uint16_t rxRejected(uint8_t ch);                // cumulative out-of-range pulses

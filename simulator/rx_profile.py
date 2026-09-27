@@ -46,6 +46,7 @@ def main() -> int:
     print()
 
     samples: dict[int, list[int]] = {0: [], 1: [], 2: [], 3: []}
+    channel_indices = [4, 5, 6, 7]  # legacy corrected-channel positions
     line_count = 0
     start = time.monotonic()
 
@@ -56,16 +57,22 @@ def main() -> int:
                 if not raw:
                     continue
                 line = raw.decode("ascii", errors="ignore").strip()
-                if not line or line.startswith("#") or line.startswith("roll,"):
+                if not line or line.startswith("#"):
                     continue
                 parts = line.split(",")
-                if len(parts) != 16:
+                if parts[0] == "roll":
+                    # Prefer unsmoothed ISR pulse widths when extended tuning
+                    # telemetry is available; fall back to the legacy fields.
+                    names = {name: i for i, name in enumerate(parts)}
+                    raw_names = [f"raw_ch{i}" for i in range(1, 5)]
+                    if all(name in names for name in raw_names):
+                        channel_indices = [names[name] for name in raw_names]
+                    continue
+                if len(parts) <= max(channel_indices):
                     continue
                 try:
-                    samples[0].append(int(parts[4]))   # ch1
-                    samples[1].append(int(parts[5]))   # ch2
-                    samples[2].append(int(parts[6]))   # ch3
-                    samples[3].append(int(parts[7]))   # ch4
+                    for i, index in enumerate(channel_indices):
+                        samples[i].append(int(parts[index]))
                     line_count += 1
                 except ValueError:
                     continue
