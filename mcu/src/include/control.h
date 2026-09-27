@@ -33,6 +33,10 @@ struct Setpoints {
 
 void      controlInit();
 
+// Immediately clear the armed state and all gesture/settle timers. Used by
+// faults outside the RX/control layer (for example, loss of the IMU).
+void      controlForceDisarm();
+
 // All four channel inputs are post-offset, post-clamp µs (1000..2000).
 // failsafe = true when any flight-critical channel hasn't seen a pulse
 // recently (caller decides; we just respect the flag).

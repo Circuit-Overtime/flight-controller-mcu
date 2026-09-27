@@ -1,3 +1,4 @@
+#include <math.h>
 #include "include/pid.h"
 
 static inline float _clamp(float v, float lo, float hi) {
@@ -22,6 +23,14 @@ void Pid::setGains(float kp, float ki, float kd) {
 }
 
 float Pid::update(float setpoint, float measured, float dt_s) {
+  // Never allow a bad sensor value or broken time step to propagate through
+  // the integrator/derivative state and eventually reach an ESC command.
+  if (!isfinite(setpoint) || !isfinite(measured) ||
+      !isfinite(dt_s) || dt_s <= 0.0f) {
+    reset();
+    return 0.0f;
+  }
+
   float error = setpoint - measured;
 
   // Proportional.

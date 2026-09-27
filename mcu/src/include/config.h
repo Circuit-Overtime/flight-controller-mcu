@@ -22,7 +22,8 @@
 // ---- IMU: MPU6050 over I2C --------------------------------------------------
 #define MPU_I2C_ADDR            0x68
 #define MPU_I2C_CLOCK           400000UL // Hz; chip datasheet max is 400 kHz
-#define MPU_SAMPLE_RATE_DIVIDER 0x07     // base 1 kHz / (1 + 7) = 125 Hz
+#define MPU_I2C_TIMEOUT_US      3000UL   // reset TWI if a bus transaction stalls
+#define MPU_SAMPLE_RATE_DIVIDER 0x04     // base 1 kHz / (1 + 4) = 200 Hz
 #define MPU_DLPF_CONFIG         0x03     // ~44 Hz low-pass on accel+gyro
 #define MPU_GYRO_FS             0x00     // 0=±250 dps, 1=±500, 2=±1000, 3=±2000
 #define MPU_ACCEL_FS            0x00     // 0=±2g, 1=±4g, 2=±8g, 3=±16g
@@ -65,7 +66,7 @@
 // A channel is "alive" if it has produced a valid pulse in the last N µs.
 // 100 ms (5 PWM frames) was tight enough that an occasional dropped frame
 // from the FlySky RX could trip the arming gesture timer; 250 ms = 12 frames
-// of tolerance and matches FAILSAFE_MS so the two thresholds are unified.
+// of tolerance before the receiver is considered lost.
 #define RX_ALIVE_TIMEOUT_US     250000UL // 250 ms
 
 // Output smoothing + center calibration.
@@ -88,7 +89,12 @@
 
 // ---- Loop rates -------------------------------------------------------------
 #define FC_LOOP_HZ              200      // inner rate-PID loop frequency (Hz)
-#define FC_DT_S                 (1.0f / (float)FC_LOOP_HZ)
+#define FC_LOOP_PERIOD_US       (1000000UL / FC_LOOP_HZ)
+
+// Consecutive scheduled MPU read failures before the controller is forced
+// disarmed. Four ticks at 200 Hz is 20 ms: enough to reject a one-off I2C
+// glitch while preventing stale motor commands from persisting on sensor loss.
+#define IMU_FAIL_DISARM_TICKS   4
 
 
 // ---- Motor outputs (Servo PWM) ---------------------------------------------
@@ -104,7 +110,6 @@
 
 // Pulse widths sent to ESCs.
 #define MOTOR_DISARM_US         1000     // ESCs MUST see this at boot to arm
-#define MOTOR_IDLE_US           1080     // armed but barely spinning
 #define MOTOR_MIN_US            1130     // minimum commandable in-flight throttle
                                           // (above stiction threshold so all 4
                                           //  motors keep spinning when one
@@ -178,10 +183,6 @@
 // the drone — without this, motors would snap to a yaw mix the moment arming
 // fires because the user's hand is still on the gesture.
 #define POST_ARM_SETTLE_MS      1000
-
-// Failsafe: if any flight-critical channel goes silent for this long, disarm.
-#define FAILSAFE_MS             250
-
 
 // ---- RX smoothing on the FC control path -----------------------------------
 // Light EMA applied to RX values feeding the PIDs (separate from the heavier

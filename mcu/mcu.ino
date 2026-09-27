@@ -89,10 +89,15 @@ void mpuWrite(uint8_t reg, uint8_t val) {
 
 bool mpuReadRaw(int16_t &ax, int16_t &ay, int16_t &az,
                 int16_t &gx, int16_t &gy, int16_t &gz, int16_t &temp) {
+  Wire.clearWireTimeoutFlag();
   Wire.beginTransmission(MPU_I2C_ADDR);
   Wire.write(REG_ACC_XOUT);
   if (Wire.endTransmission(false) != 0) return false;
   if (Wire.requestFrom((int)MPU_I2C_ADDR, 14, (int)true) != 14) return false;
+  if (Wire.getWireTimeoutFlag()) {
+    Wire.clearWireTimeoutFlag();
+    return false;
+  }
   ax   = (Wire.read() << 8) | Wire.read();
   ay   = (Wire.read() << 8) | Wire.read();
   az   = (Wire.read() << 8) | Wire.read();
@@ -177,6 +182,7 @@ static uint16_t rxCorrected(uint8_t ch) {
 void setup() {
   Serial.begin(TELEMETRY_BAUD);
   Wire.begin();
+  Wire.setWireTimeout(MPU_I2C_TIMEOUT_US, true);
   Wire.setClock(MPU_I2C_CLOCK);
 
   mpuWrite(REG_PWR_MGMT, 0x00);                    // wake
@@ -221,19 +227,46 @@ void setup() {
 // physically disconnected we'll see this climb; flash the CALIB led when
 // it does. Reset on every successful read.
 static uint16_t imu_fail_streak = 0;
-static const uint16_t IMU_FAIL_FLASH_THRESHOLD = 50;  // ~250 ms of failures
+
+static void resetPids() {
+  pid_roll_angle.reset(); pid_pitch_angle.reset();
+  pid_roll_rate.reset();  pid_pitch_rate.reset();  pid_yaw_rate.reset();
+}
+
+static void disarmForImuFault() {
+  if (fc_armed) Serial.println(F("# IMU FAULT - DISARMED"));
+  controlForceDisarm();
+  resetPids();
+  motorsDisarm();
+  fc_armed = false;
+  for (uint8_t i = 0; i < 4; i++) motor_out[i] = MOTOR_DISARM_US;
+  ledCalibSet(LED_MODE_FLASH_2);
+}
 
 void loop() {
-  int16_t rax, ray, raz, rgx, rgy, rgz, rtemp;
-  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz, rtemp)) {
-    if (imu_fail_streak < 0xFFFF) imu_fail_streak++;
-    if (imu_fail_streak >= IMU_FAIL_FLASH_THRESHOLD) ledCalibSet(LED_MODE_FLASH_2);
+  // Run sensor fusion and control from one scheduled 200 Hz tick. The MPU is
+  // configured for the same output rate, avoiding repeated integration of one
+  // sensor sample in a faster free-running loop.
+  uint32_t now_us = micros();
+  if (now_us - last_fc_us < FC_LOOP_PERIOD_US) {
     ledsUpdate(millis());
     return;
   }
-  if (imu_fail_streak >= IMU_FAIL_FLASH_THRESHOLD) {
-    // Recovered — return CALIB to its steady "calibration done" indicator.
-    ledCalibSet(LED_MODE_ON);
+
+  float dt = (now_us - last_us) * 1e-6f;
+  last_us    = now_us;
+  last_fc_us = now_us;
+  // Bound pathological timing after a stall/debug pause. Normal operation is
+  // near 0.005 s; this range keeps I and D terms numerically well behaved.
+  if (dt < 0.001f) dt = 0.001f;
+  if (dt > 0.020f) dt = 0.020f;
+
+  int16_t rax, ray, raz, rgx, rgy, rgz, rtemp;
+  if (!mpuReadRaw(rax, ray, raz, rgx, rgy, rgz, rtemp)) {
+    if (imu_fail_streak < 0xFFFF) imu_fail_streak++;
+    if (imu_fail_streak >= IMU_FAIL_DISARM_TICKS) disarmForImuFault();
+    ledsUpdate(millis());
+    return;
   }
   imu_fail_streak = 0;
 
@@ -244,10 +277,6 @@ void loop() {
   float gy = (rgy - gy_off) / MPU_GYRO_LSB_PER_DPS;
   float gz = (rgz - gz_off) / MPU_GYRO_LSB_PER_DPS;
   float temp_c = rtemp / 340.0f + 36.53f;
-
-  uint32_t now_us = micros();
-  float dt = (now_us - last_us) * 1e-6f;
-  last_us = now_us;
 
   float accel_roll  = atan2f(ay, az) * 57.29578f;
   float accel_pitch = atan2f(-ax, sqrtf(ay*ay + az*az)) * 57.29578f;
@@ -282,9 +311,6 @@ void loop() {
   ledsUpdate(now_ms);
 
   // ---- Flight controller tick ---------------------------------------------
-  if (now_us - last_fc_us >= 1000000UL / FC_LOOP_HZ) {
-    last_fc_us = now_us;
-
     bool failsafe = !rxAlive(0, now_us) || !rxAlive(1, now_us) ||
                     !rxAlive(2, now_us) || !rxAlive(3, now_us);
 
@@ -300,9 +326,7 @@ void loop() {
     // blinking when disarmed (calibrated but waiting for arm gesture). The
     // IMU-fault FLASH_2 in the IMU read path overrides this if it triggers
     // — we only set ON/BLINK here, never override the FLASH_2.
-    if (imu_fail_streak < IMU_FAIL_FLASH_THRESHOLD) {
-      ledCalibSet(sp.armed ? LED_MODE_ON : LED_MODE_BLINK);
-    }
+    ledCalibSet(sp.armed ? LED_MODE_ON : LED_MODE_BLINK);
 
     // Debug: log arm/disarm edges so the visualiser-side behaviour can be
     // matched against firmware state. Visualiser ignores '#' lines.
@@ -330,25 +354,22 @@ void loop() {
     // which is what we want for sign-verification and tuning visualization.
     // Once armed, the integrators behave normally until the next disarm.
     if (!sp.armed) {
-      pid_roll_angle.reset(); pid_pitch_angle.reset();
-      pid_roll_rate.reset();  pid_pitch_rate.reset();  pid_yaw_rate.reset();
+      resetPids();
     }
 
     // Always run the PID + mixer so the simulator can show "what the FC
     // would command right now" even when disarmed. Only motorsWrite when
     // actually armed.
-    float roll_rate_sp  = pid_roll_angle.update (sp.angle_roll_deg,  roll,  FC_DT_S);
-    float pitch_rate_sp = pid_pitch_angle.update(sp.angle_pitch_deg, pitch, FC_DT_S);
-    float roll_us       = pid_roll_rate.update  (roll_rate_sp,       gx,    FC_DT_S);
-    float pitch_us      = pid_pitch_rate.update (pitch_rate_sp,      gy,    FC_DT_S);
-    float yaw_us        = pid_yaw_rate.update   (sp.yaw_rate_dps,    gz,    FC_DT_S);
+    float roll_rate_sp  = pid_roll_angle.update (sp.angle_roll_deg,  roll,  dt);
+    float pitch_rate_sp = pid_pitch_angle.update(sp.angle_pitch_deg, pitch, dt);
+    float roll_us       = pid_roll_rate.update  (roll_rate_sp,       gx,    dt);
+    float pitch_us      = pid_pitch_rate.update (pitch_rate_sp,      gy,    dt);
+    float yaw_us        = pid_yaw_rate.update   (sp.yaw_rate_dps,    gz,    dt);
     mixerComputeXQuad(sp.throttle_us, roll_us, pitch_us, yaw_us, motor_out);
 
     fc_armed = sp.armed;
     if (fc_armed) motorsWrite(motor_out);
     else          motorsDisarm();
-  }
-
   // ---- Telemetry stream — slim 16-field CSV ---------------------------
   // Trimmed to keep TX time per line well under one IMU loop tick so the
   // visualizer never sees stale data.

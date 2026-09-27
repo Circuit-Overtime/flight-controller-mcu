@@ -23,6 +23,13 @@ void controlInit() {
   settle_until_ms_  = 0;
 }
 
+void controlForceDisarm() {
+  armed_            = false;
+  gesture_start_ms_ = 0;
+  failsafe_streak_  = 0;
+  settle_until_ms_  = 0;
+}
+
 // Map a centered stick (1500 ± half-range) to [-1, +1] with a deadband
 // around center to prevent noise from creating ghost setpoints.
 static float _stickNorm(uint16_t pwm) {
