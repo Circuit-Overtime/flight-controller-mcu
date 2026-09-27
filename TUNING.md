@@ -35,6 +35,36 @@ boot calibration and then records the requested duration after receiving the
 CSV header. Firmware event lines are written beside the CSV as
 `stationary.events.txt`.
 
+## Guided receiver endpoint capture
+
+Do not enter receiver limits from specifications or visual estimates. With
+propellers removed, use the interactive tool to record exactly 100 fresh
+samples at every requested physical stick position:
+
+```bash
+python simulator/guided_rx_capture.py /dev/ttyACM0 460800 100 logs/rx-guided.csv
+```
+
+For each phase, set and hold the requested position before pressing Enter. The
+tool then clears queued serial input and captures exactly 100 new rows. It
+records raw receiver widths together with the simultaneous IMU, failsafe,
+timing, setpoint, PID, and motor data. It also prints immediate per-channel
+mean, standard deviation, minimum, maximum, and RX-alive status.
+
+The guided phases are:
+
+1. centred roll/pitch/yaw with throttle lowest;
+2. roll fully left and fully right;
+3. pitch fully down and fully up;
+4. throttle midpoint and highest;
+5. yaw fully left and fully right with throttle at midpoint, preventing the
+   low-throttle yaw-right arming gesture;
+6. a final centred/low position to measure centre drift.
+
+Firmware stick endpoints, centres, deadband, direction, and arming thresholds
+must not be changed until this capture has been reviewed. The tool aborts
+immediately if telemetry reports that the controller became armed.
+
 ## Required prop-off captures
 
 Keep all propellers removed for every test in this section.
@@ -45,12 +75,8 @@ Keep all propellers removed for every test in this section.
    - Turn on the transmitter and leave all controls untouched.
    - Do not touch the table or airframe during capture.
 
-2. **Receiver ranges — 60 seconds**
-   - Move only one control at a time, slowly.
-   - For roll, pitch, and yaw: hold minimum for 3 seconds, centre for 3
-     seconds, then maximum for 3 seconds.
-   - For throttle: hold minimum and maximum for 3 seconds each.
-   - Return every control to its normal resting position.
+2. **Receiver ranges**
+   - Use the guided receiver endpoint capture above.
 
 3. **Receiver loss — 30 seconds**
    - Start with the transmitter on and receiver healthy.
