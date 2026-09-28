@@ -160,7 +160,12 @@ be combined on the 5 V rail until their isolation behavior is established.
 
 The BMP180 is not connected for first flight.
 
-### FlySky FS-R6B receiver
+### FlySky FS-CT6B transmitter and FS-R6B receiver
+
+The transmitter is an FS-CT6B using the AFHDS protocol. Guided endpoint data
+confirms the Mode 2 control layout: CH3 is left-stick vertical throttle and CH4
+is left-stick horizontal yaw. The manufacturer's FS-CT6B manual does not
+document a user-configurable failsafe.
 
 | Channel | Function | Mega pin |
 | --- | --- | --- |
@@ -293,9 +298,8 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
 7. Review all four required prop-off logs.
-8. The cue-timed transmitter-loss repeat asserted failsafe after 0.930 s. Exact
-   transmitter model and native failsafe configuration remain to be verified;
-   then perform an armed prop-off test of the physical disarm transition.
+8. The FS-CT6B/FS-R6B cue-timed transmitter-loss repeat asserted failsafe after
+   0.930 s. Perform an armed prop-off test of the physical disarm transition.
 9. Perform motor-correction tests with propellers removed: the motors on the
    physically lowered side must receive more command.
 10. Establish thrust margin and hover throttle before attempting PID tuning in

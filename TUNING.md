@@ -134,9 +134,10 @@ measured 0.930 s from the printed switch-off cue to mask 0 and failsafe. The
 transition was direct from mask 15 to 0, with no rejected pulses and no armed
 rows. The configured MCU stale timeout accounts for 250 ms; the remaining
 approximately 0.68 s includes operator reaction and the interval during which
-the receiver continued producing valid PWM. Confirm and configure the radio
-system's native failsafe before flight. An armed, prop-off loss test remains a
-later physical-output check.
+the receiver continued producing valid PWM. The FS-CT6B manual does not expose
+a user-configurable failsafe, so the verified FS-R6B pulse-loss behavior and
+the MCU timeout form the available loss path. An armed, prop-off loss test
+remains a later physical-output check.
 
 Only after these gates pass should motor-on response tests be designed. Never
 run a propeller-equipped vibration or PID test on a loose indoor airframe.
