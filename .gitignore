@@ -1,4 +1,6 @@
 __pycache__/
 *.py[cod]
+.venv/
+.env
 logs/*.csv
 logs/*.events.txt
