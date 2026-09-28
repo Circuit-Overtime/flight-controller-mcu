@@ -181,12 +181,16 @@ an LED; it does not automatically disarm in flight.
 | Centred-stick reference | 1500 us |
 | Centred-stick deadband | ±15 us |
 | Effective roll/pitch/yaw span | 1500 ± 300 us |
-| Configured throttle input span | 1100-1700 us, pending raw-range log |
+| Measured raw roll | 1092 / 1490 / 1882 us (left/centre/right means) |
+| Measured raw pitch | 1125 / 1430 / 1799 us (down/centre/up means) |
+| Measured raw throttle | 1124 / 1466 / 1808 us (low/midpoint/high means) |
+| Measured raw yaw | 1052 / 1462 / 1830 us (left/centre/right means) |
+| Configured throttle input span | 1120-1700 us; upper cap reserves PID authority |
 | Maximum commanded tilt | ±25 degrees |
 | Maximum commanded yaw rate | ±120 degrees/s |
 
-Arming requires throttle at or below 1100 us and yaw at or above 1800 us for
-1500 ms. Disarming requires throttle at or below 1100 us and yaw at or below
+Arming requires throttle at or below 1160 us and yaw at or above 1800 us for
+1500 ms. Disarming requires throttle at or below 1160 us and yaw at or below
 1200 us for 1500 ms. Roll, pitch, and yaw setpoints remain zero for 1000 ms
 after arming so the pilot can release the yaw gesture.
 

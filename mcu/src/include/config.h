@@ -118,14 +118,16 @@
 
 
 // ---- Stick mapping (post-calibration) --------------------------------------
-// User's TX physical ranges (measured from rx_profile + visualiser):
-//   throttle stick:           ~1100..1700 us
-//   yaw / pitch / roll stick: ~1100..1800 us (centered at 1500)
-// Caps below match exactly so anything past the TX's physical max saturates
-// at the same firmware-side value the FC actually sees.
+// Raw endpoints measured from 100 samples per position (rx-guided.csv):
+//   roll:     1092 / 1490 / 1882 us  (left / centre / right)
+//   pitch:    1125 / 1430 / 1799 us  (down / centre / up)
+//   throttle: 1124 / 1466 / 1808 us  (low / midpoint / high)
+//   yaw:      1052 / 1462 / 1830 us  (left / centre / right)
+// Centred channels are shifted to 1500 by boot calibration. Throttle is capped
+// at 1700 to preserve 100 us of PID authority below MOTOR_MAX_US.
 #define STICK_DEAD_BAND_US      15        // ±15 µs around center -> zero input
 #define STICK_RANGE_HALF_US     300       // 1500 ± 300 -> 1200..1800 effective
-#define STICK_THROTTLE_LO_US    1100
+#define STICK_THROTTLE_LO_US    1120      // measured low-stick 5th percentile
 #define STICK_THROTTLE_HI_US    1700      // throttle saturates here
 
 // Maximum commanded angle (angle mode) and rate (acro / yaw).
@@ -162,11 +164,11 @@
 // Arm gesture: throttle low + yaw stick held to a pre-configured side for N ms.
 // Disarm: throttle low + opposite yaw stick.
 //
-// Arm gesture: throttle ≤ 1100 (i.e. fully bottom) AND yaw ≥ 1800 (i.e.
-// fully right) for ARM_HOLD_MS. Disarm: throttle ≤ 1100 AND yaw ≤ 1200
-// (fully left) for ARM_HOLD_MS. Numbers match the TX physical extremes
-// directly so the gesture always triggers when the user thinks it should.
-#define ARM_THROTTLE_MAX_US     1100      // throttle ≤ this
+// Arm gesture: throttle ≤ 1160 AND yaw ≥ 1800 for ARM_HOLD_MS. Disarm uses
+// throttle ≤ 1160 and yaw ≤ 1200. The throttle threshold is above every
+// observed low-stick sample (maximum 1148 us); yaw thresholds retain at least
+// ~60 us margin after boot centre correction.
+#define ARM_THROTTLE_MAX_US     1160      // measured low stick plus 12 us
 #define ARM_YAW_LOW_US          1200      // yaw stick "held left"  (≤ this)
 #define ARM_YAW_HIGH_US         1800      // yaw stick "held right" (≥ this)
 #define ARM_HOLD_MS             1500      // gesture hold time

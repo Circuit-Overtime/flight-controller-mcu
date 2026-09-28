@@ -78,7 +78,7 @@ aircraft's measured scale weight before flight.
 2. Confirm M4 rotates clockwise when viewed from above.
 3. Confirm battery chemistry.
 4. Measure the complete all-up mass on a scale.
-5. Measure actual PWM minimum, centre, and maximum for RX channels 1-4 from a
-   raw telemetry capture.
+5. Repeat a short RX-health capture after flashing the timestamp-race fix and
+   confirm flight-channel alive mask 15 with no false failsafe rows.
 6. Measure each motor's individual continuous-spin threshold after the final
    propellers and power system are installed.
