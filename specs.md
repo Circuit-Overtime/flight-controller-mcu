@@ -168,6 +168,24 @@ be combined on the 5 V rail until their isolation behavior is established.
 
 The BMP180 is not connected for first flight.
 
+### OLED status display
+
+| Property | Setting |
+| --- | --- |
+| Module | 0.96-inch SSD1306-compatible OLED, 128 x 64 |
+| Interface | Shared I2C bus at 400 kHz |
+| Address | 0x3C |
+| Wiring | SDA to Mega 20; SCL to Mega 21, in parallel with MPU6050 |
+| Live refresh | 2 Hz framebuffer rebuild with 24-byte incremental transfers |
+
+Boot pages show ESC initialization, IMU calibration, RX calibration, and ready
+state. The live page shows arm and RX-health state, raw CH1-CH6 pulse widths,
+sensed battery voltage and low-voltage state, X/Y/Z gyro rates, and MPU6050
+temperature. Display transfers occur only after a completed flight-control
+calculation and are split into bounded chunks; no complete 1024-byte frame is
+sent as one blocking I2C transaction. If address 0x3C does not acknowledge at
+boot, display output disables itself without preventing flight-controller boot.
+
 ### FlySky FS-CT6B transmitter and FS-R6B receiver
 
 The transmitter is an FS-CT6B using the AFHDS protocol. Guided endpoint data

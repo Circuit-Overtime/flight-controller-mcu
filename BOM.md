@@ -51,6 +51,7 @@ confirmation. Firmware voltage thresholds must match the confirmed chemistry.
 | --- | --- |
 | Flight computer | Arduino Mega 2560 |
 | IMU | MPU6050 breakout |
+| Status display | 0.96-inch I2C OLED, address 0x3C |
 | IMU mounting | Flat and rigid on the central breadboard |
 | IMU orientation | Sensor +X aligned with the physical front of the aircraft |
 | Transmitter | FlySky FS-CT6B, AFHDS, Mode 2 verified by physical-axis capture |
@@ -58,6 +59,10 @@ confirmation. Firmware voltage thresholds must match the confirmed chemistry.
 | Receiver order | CH1 roll, CH2 pitch, CH3 throttle, CH4 yaw |
 | Receiver auxiliary wiring | CH5 signal to A12; CH6 signal to A13 |
 | Pressure sensor | BMP180 available but intentionally disconnected for first flight |
+
+The OLED and MPU6050 share the Mega hardware-I2C bus in parallel: both SDA
+signals connect to pin 20 and both SCL signals connect to pin 21. Their
+addresses are distinct (`0x3C` and `0x68`).
 
 Rigid IMU mounting can transmit motor/propeller vibration directly into the
 gyro and accelerometer. Stationary and powered-motor logs must be checked before

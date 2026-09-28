@@ -30,6 +30,7 @@
 #include "src/include/control.h"
 #include "src/include/leds.h"
 #include "src/include/battery.h"
+#include "src/include/oled.h"
 
 // MPU6050 register addresses (datasheet "Register Map", §3).
 static const uint8_t REG_PWR_MGMT = 0x6B;
@@ -186,6 +187,9 @@ void setup() {
   Wire.setWireTimeout(MPU_I2C_TIMEOUT_US, true);
   Wire.setClock(MPU_I2C_CLOCK);
 
+  oledInit();
+  oledShowBoot(OLED_BOOT_START);
+
   mpuWrite(REG_PWR_MGMT, 0x00);                    // wake
   delay(50);
   mpuWrite(REG_SMPLRT,   MPU_SAMPLE_RATE_DIVIDER);
@@ -209,12 +213,16 @@ void setup() {
   // CALIB stays in BLINK after calibration completes — we only switch to
   // ON once the user actually arms via the TX gesture.
   ledCalibSet(LED_MODE_BLINK);
+  oledShowBoot(OLED_BOOT_ESC);
   motorsArmEscs(_setupTick);
+  oledShowBoot(OLED_BOOT_IMU);
   calibrate();
+  oledShowBoot(OLED_BOOT_RX);
   calibrateRx();
 
   // Boot complete (CALIB still blinking, waiting for arm).
   ledStartupSet(LED_MODE_ON);
+  oledShowBoot(OLED_BOOT_READY);
   last_us    = micros();
   last_fc_us = last_us;
   // The first 16 fields retain the visualizer's original schema. Remaining
@@ -449,4 +457,17 @@ void loop() {
     Serial.print(rxRejected(2)); Serial.print(',');
     Serial.println(rxRejected(3));
   }
+
+  // Queue a human-readable status page at 2 Hz. Transfer only one small I2C
+  // chunk per completed FC tick so OLED traffic cannot create a full-frame
+  // blocking pause in the 200 Hz control loop.
+  static uint32_t last_oled_ms = 0;
+  if (oledPresent() && now_ms - last_oled_ms >= OLED_REFRESH_MS) {
+    last_oled_ms = now_ms;
+    uint16_t oled_rx[RX_NUM_CHANNELS];
+    for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) oled_rx[ch] = rxGet(ch);
+    oledQueueLive(fc_armed, failsafe, batteryIsLow(), last_battery_v,
+                  oled_rx, gx, gy, gz, temp_c);
+  }
+  oledService();
 }

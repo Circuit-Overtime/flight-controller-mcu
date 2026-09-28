@@ -33,6 +33,16 @@
 #define MPU_CALIB_SAMPLES       2000     // ~4 s @ ~500 Hz inner loop
 
 
+// ---- OLED: 0.96-inch SSD1306-compatible display on the shared I2C bus -----
+// The display is wired in parallel with the MPU6050: SDA=20 and SCL=21.
+#define OLED_I2C_ADDR           0x3C
+#define OLED_WIDTH              128
+#define OLED_PAGES              8        // 64 pixels high / 8 pixels per page
+#define OLED_COLUMN_OFFSET      0        // SSD1306; SH1106 modules usually need 2
+#define OLED_REFRESH_MS         500UL    // rebuild the live screen at 2 Hz
+#define OLED_TX_CHUNK           24       // bounded transfer below Wire's buffer
+
+
 // ---- Attitude estimator -----------------------------------------------------
 // Complementary filter weighting. Higher = trust gyro more (smoother but slower
 // gravity correction); lower = trust accel more (faster correction, more noise).
