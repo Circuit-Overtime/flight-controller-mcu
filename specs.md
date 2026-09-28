@@ -81,9 +81,10 @@ Aircraft viewed from above, with the front in the positive-X direction:
 | M3 | Rear-left | Counter-clockwise (CCW) | 48 |
 | M4 | Front-left | Clockwise (CW) | 46 |
 
-M4's intended clockwise direction has been explicitly confirmed by the
-operator. All four actual powered rotation directions still require the planned
-propeller-free verification after uploading firmware.
+The powered propeller-free test after uploading firmware verified motor order,
+position, and direction: M1/M3 rotate CCW and M2/M4 rotate CW when viewed from
+above. Propeller handedness and downward thrust still require verification
+before fitting propellers.
 
 Each propeller must have the correct handedness for its motor direction and
 must push air downward. Motor direction, propeller type, and motor numbering
@@ -324,7 +325,8 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
 2. Confirm only an electrically valid power arrangement feeds the Mega; do not
    parallel multiple ESC BEC outputs unless their design explicitly permits it.
 3. Confirm battery chemistry and voltage-divider installation.
-4. Confirm M1-M4 positions, all four motor directions, and propeller handedness.
+4. Confirm propeller handedness and downward thrust. M1-M4 positions and powered
+   rotation directions have passed the propeller-free test.
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
 7. Review all four required prop-off logs.

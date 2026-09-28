@@ -23,7 +23,7 @@ airframe changes.
 | M1, front-right | A2212 10T, 1400 KV | CCW | Mega 52 |
 | M2, rear-right | A2212 10T, 1400 KV | CW | Mega 44 |
 | M3, rear-left | A2212 10T, 1400 KV | CCW | Mega 48 |
-| M4, front-left | A2212 10T, 1400 KV | CW (operator confirmed) | Mega 46 |
+| M4, front-left | A2212 10T, 1400 KV | CW (powered test verified) | Mega 46 |
 
 - Motor mass: 60 g each; 240 g total.
 - Propellers: 10 x 4.5 inch, two-blade nylon, 8 g each; 32 g total.
@@ -79,8 +79,8 @@ aircraft's measured scale weight before flight.
 ## Items requiring confirmation
 
 1. Confirm the motor marking is 1400 KV, not 14000 KV.
-2. Verify M1-M4 rotation under powered, propeller-free test; M4 is declared CW
-   and must turn clockwise when viewed from above.
+2. Verify propeller handedness and downward thrust before fitting propellers;
+   the powered propeller-free M1-M4 position/order/direction test has passed.
 3. Confirm battery chemistry.
 4. Measure the complete all-up mass on a scale.
 5. Identify the exact ESC/BEC model, rated BEC voltage/current, and whether its
