@@ -108,6 +108,10 @@ def main() -> int:
                         capture_started = time.monotonic()
                         writer.writerow(["host_s", *header])
                         csv_file.flush()
+                        print(
+                            "Telemetry header received; capture timer started.",
+                            flush=True,
+                        )
                     elif parts != header:
                         events_file.write(
                             f"{host_s:.6f},# SCHEMA CHANGED; row ignored\n"
