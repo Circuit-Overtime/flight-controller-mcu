@@ -51,7 +51,7 @@ confirmation. Firmware voltage thresholds must match the confirmed chemistry.
 | --- | --- |
 | Flight computer | Arduino Mega 2560 |
 | IMU | MPU6050 breakout |
-| Status display | 0.96-inch I2C OLED, address 0x3C |
+| Status display | 0.96-inch I2C OLED; no acknowledgement at 0x3C/0x3D, treated as unavailable |
 | IMU mounting | Flat and rigid on the central breadboard |
 | IMU orientation | Sensor +X aligned with the physical front of the aircraft |
 | Transmitter | FlySky FS-CT6B, AFHDS, Mode 2 verified by physical-axis capture |
@@ -119,3 +119,9 @@ aircraft's measured scale weight before flight.
   alive mask 63 with no failsafe, arming, or rejected CH1-CH4 pulses. Both AUX
   channels stayed near 1491 us: SWA and SWB are not yet mapped to CH5/CH6 in
   the transmitter configuration.
+- Two USB-only captures verified stick arming and the deliberate two-stick
+  disarm gesture. Yaw-left alone remained armed for 3.547 s; both sticks held
+  bottom-left disarmed after the configured two-second hold. Both captures had
+  mask 63 and zero failsafe rows.
+- The optional OLED failed to acknowledge at either 0x3C or 0x3D. Firmware
+  disables its display path without blocking IMU, RX, or flight-control startup.

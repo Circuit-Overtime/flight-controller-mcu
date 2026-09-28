@@ -4,8 +4,10 @@
 
 This aircraft is an experimental, Arduino Mega–based F450 X-quad intended for
 a low, manually throttled, self-levelled first-hover test. It has not yet been
-flight-qualified. Prop-off receiver, IMU, axis-sign, failsafe, and motor-response
-tests remain mandatory before fitting propellers.
+flight-qualified. Prop-off receiver, IMU, axis-sign, transmitter-loss, motor
+order/direction, and stick-arm/disarm tests have passed. An armed link-loss
+test and physical motor-correction test remain mandatory before fitting
+propellers.
 
 Altitude hold is outside the first-flight scope. The available BMP180 pressure
 sensor remains disconnected until basic attitude control has been validated.
@@ -172,7 +174,7 @@ The BMP180 is not connected for first flight.
 
 | Property | Setting |
 | --- | --- |
-| Module | 0.96-inch SSD1306-compatible OLED, 128 x 64 |
+| Module | 0.96-inch OLED, presently unavailable/not detected |
 | Interface | Shared I2C bus at 400 kHz |
 | Address | 0x3C expected; 0x3D fallback is probed automatically |
 | Wiring | SDA to Mega 20; SCL to Mega 21, in parallel with MPU6050 |
@@ -187,6 +189,10 @@ sent as one blocking I2C transaction. If address 0x3C does not acknowledge at
 boot, the fallback address 0x3D is tried. If neither address acknowledges,
 display output disables itself without preventing flight-controller boot and a
 serial diagnostic records the failed probe.
+
+The installed module did not acknowledge at either address during the
+`oled-probe.csv` boot capture. It is treated as optional and possibly damaged;
+the firmware disabled display traffic while the MPU6050 continued operating.
 
 ### FlySky FS-CT6B transmitter and FS-R6B receiver
 
@@ -351,9 +357,9 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
    rotation directions have passed the propeller-free test.
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
-7. Review all four required prop-off logs.
-8. The FS-CT6B/FS-R6B cue-timed transmitter-loss repeat asserted failsafe after
-   0.930 s. Perform an armed prop-off test of the physical disarm transition.
+7. The required RX, IMU, physical-axis, and stick-safety logs have been reviewed.
+8. Stick arming and deliberate two-stick disarming have passed. Perform an
+   armed, prop-off transmitter-loss test to verify the physical failsafe path.
 9. Perform motor-correction tests with propellers removed: the motors on the
    physically lowered side must receive more command.
 10. Establish thrust margin and hover throttle before attempting PID tuning in
@@ -452,3 +458,18 @@ the largest calculated SWA or SWB effect was only 1.6 us. Therefore neither
 physical switch is currently assigned to either AUX output. T6Config must be
 backed up and deliberately configured before an AUX arming state machine can be
 implemented. The existing yaw-stick arming behavior remains active meanwhile.
+
+## 16. Verified stick safety and optional-display results
+
+The first USB-only arm/disarm capture transitioned to armed at 15.142 s. The
+complete two-stick bottom-left gesture was then held for 2.008 s and disarmed
+at 24.931 s. A dedicated repeat armed at 15.255 s, held throttle-low/yaw-left
+alone for 3.547 s without disarming, then held both sticks bottom-left for
+2.020 s and disarmed at 26.141 s. Both captures retained RX mask 63 with zero
+failsafe rows. This verifies that ordinary yaw-left cannot trigger disarm.
+
+After OLED integration, the boot probe reported no acknowledgement at 0x3C or
+0x3D and disabled display output. The associated 225-row capture retained RX
+mask 63 with zero failsafe rows. Its mean loop interval was 5060.3 us and its
+maximum was 6040 us; the MPU6050 remained stable. The OLED is therefore not a
+first-flight dependency and is presently assumed damaged or incorrectly wired.
