@@ -203,8 +203,8 @@ physical-axis test.
 | CH2 | Pitch | A9 / PCINT17 |
 | CH3 | Throttle | A10 / PCINT18 |
 | CH4 | Yaw | A11 / PCINT19 |
-| CH5 | Reserved arm switch; signal not connected | A12 / PCINT20 |
-| CH6 | Reserved; signal not connected | A13 / PCINT21 |
+| CH5 | AUX connected; control not yet assigned | A12 / PCINT20 |
+| CH6 | AUX connected; control not yet assigned | A13 / PCINT21 |
 
 - PWM capture uses the Port K pin-change interrupt.
 - Only pulses from 800 through 2200 us are accepted.
@@ -418,3 +418,15 @@ signs were unambiguous. Net yaw change inside each roll/pitch capture was at
 most 1.4 degrees. Larger yaw offsets between phases came from repositioning the
 airframe outside the recorded movement and are expected because no magnetometer
 provides an absolute heading reference.
+
+## 15. Auxiliary-channel switch matrix
+
+After connecting receiver CH5 to A12 and CH6 to A13, the SWB/SWA matrix capture
+recorded 500 finite rows across `00 -> 01 -> 11 -> 10 -> 00`. Every row had
+alive mask 63, `armed=0`, `failsafe=0`, and zero rejected CH1-CH4 pulses.
+
+CH5 remained around 1491 us and CH6 around 1490 us in all switch combinations;
+the largest calculated SWA or SWB effect was only 1.6 us. Therefore neither
+physical switch is currently assigned to either AUX output. T6Config must be
+backed up and deliberately configured before an AUX arming state machine can be
+implemented. The existing yaw-stick arming behavior remains active meanwhile.

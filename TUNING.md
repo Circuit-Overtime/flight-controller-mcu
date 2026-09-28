@@ -23,11 +23,11 @@ wired, the expected healthy mask is decimal 15. A missing critical bit means
 that channel has not delivered a valid pulse within 250 ms. Values outside
 800-2200 us are rejected, counted, and never applied to control.
 
-CH5/A12 and CH6/A13 are currently floating. A floating pin can pick up an
-adjacent PWM edge and temporarily produce mask 31; do not interpret that as a
-connected auxiliary channel. Connect the receiver's CH5 signal to A12 before
-running the arm-switch capture. The existing common receiver ground is enough;
-do not add another receiver power feed.
+CH5/A12 and CH6/A13 were initially floating; adjacent PWM pickup could produce
+mask 31 and was not evidence of a connected auxiliary channel. Both signals are
+now connected and the switch-matrix capture reports mask 63 in every row. The
+existing common receiver ground is sufficient; do not add another receiver
+power feed.
 
 ## Capture command
 

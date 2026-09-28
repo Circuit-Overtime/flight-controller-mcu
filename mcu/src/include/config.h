@@ -45,8 +45,8 @@
 //   CH2 = pitch     (right stick U/D)
 //   CH3 = throttle  (left stick U/D, no spring return)
 //   CH4 = yaw       (left stick L/R)
-//   CH5/CH6 physically disconnected for now (reserved for arm switch / mode)
-#define RX_NUM_CHANNELS         6        // streamed; only CH1..CH4 are connected
+//   CH5/CH6 connected for measured arm-switch / flight-mode assignment
+#define RX_NUM_CHANNELS         6        // all six PWM signals are connected
 
 // Pin assignments: all six channels on Port K (Mega A8..A13 = PCINT16..21).
 // Single PCINT2_vect ISR services all of them — see rx.cpp for the mask.
