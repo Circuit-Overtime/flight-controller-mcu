@@ -168,6 +168,27 @@ right-horizontal is CH1 roll, right-vertical is CH2 pitch, left-vertical is CH3
 throttle, and left-horizontal is CH4 yaw. The manufacturer's FS-CT6B manual
 does not document a user-configurable failsafe.
 
+#### Verified physical Mode 2 layout
+
+| Physical gimbal | Physical movement | Channel | Flight function | Raw endpoint means |
+| --- | --- | ---: | --- | ---: |
+| Right stick | Left → right | CH1 | Roll | 1099.48 → 1869.80 us |
+| Right stick | Down → up | CH2 | Pitch | 1129.84 → 1784.12 us |
+| Left stick | Lowest → highest | CH3 | Throttle | 1120.84 → 1804.96 us |
+| Left stick | Left → right | CH4 | Yaw | 1050.88 → 1826.08 us |
+
+Therefore the operator controls are:
+
+- right-stick horizontal: bank left/right;
+- right-stick vertical: pitch down/up command axis;
+- left-stick vertical: throttle low/high;
+- left-stick horizontal: yaw left/right.
+
+These assignments come from `logs/tx-physical-layout.csv`, not from an assumed
+software-mode setting. Direction signs above describe increasing transmitter
+PWM. Final aircraft pitch/roll correction signs still require the separate IMU
+physical-axis test.
+
 | Channel | Function | Mega pin |
 | --- | --- | --- |
 | CH1 | Roll | A8 / PCINT16 |
