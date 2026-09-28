@@ -65,6 +65,24 @@ Firmware stick endpoints, centres, deadband, direction, and arming thresholds
 must not be changed until this capture has been reviewed. The tool aborts
 immediately if telemetry reports that the controller became armed.
 
+## Guided IMU alignment capture
+
+After receiver health passes, capture the real MPU mounting and axis signs:
+
+```bash
+python simulator/guided_imu_capture.py /dev/ttyACM0 460800 100 logs/imu-guided.csv
+```
+
+The tool requests repeated level holds plus right/left roll, nose-down/nose-up
+pitch, and clockwise/counter-clockwise yaw motions. Static and motion phases are
+labelled in the CSV. Each phase contains exactly 100 fresh samples.
+
+For a movement phase, place the aircraft in the stated start position, press
+Enter, immediately perform one smooth motion, and hold the final position until
+capture completes. Do not move the transmitter controls. The tool aborts if the
+controller arms, receiver failsafe activates, or any flight channel becomes
+stale.
+
 ## Required prop-off captures
 
 Keep all propellers removed for every test in this section.
@@ -85,11 +103,7 @@ Keep all propellers removed for every test in this section.
      persist. Perform this test without propellers.
 
 4. **Axis-sign test — 60 seconds**
-   - Begin level.
-   - Lift and lower the right side, then the left side.
-   - Lift and lower the nose, then the tail.
-   - Rotate clockwise and counter-clockwise while keeping the frame level.
-   - Pause level for several seconds between movements.
+   - Use the guided IMU alignment capture above.
 
 Use distinct output names such as `stationary.csv`, `rx-ranges.csv`,
 `rx-loss.csv`, and `axis-signs.csv`. Do not combine the tests; separate
