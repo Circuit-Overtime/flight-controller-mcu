@@ -53,7 +53,7 @@ confirmation. Firmware voltage thresholds must match the confirmed chemistry.
 | IMU | MPU6050 breakout |
 | IMU mounting | Flat and rigid on the central breadboard |
 | IMU orientation | Sensor +X aligned with the physical front of the aircraft |
-| Transmitter | FlySky FS-CT6B, AFHDS, configured as Mode 2 |
+| Transmitter | FlySky FS-CT6B, AFHDS, Mode 2 verified by physical-axis capture |
 | Receiver | FlySky FS-R6B, individual PWM channels |
 | Receiver order | CH1 roll, CH2 pitch, CH3 throttle, CH4 yaw |
 | Pressure sensor | BMP180 available but intentionally disconnected for first flight |
@@ -103,3 +103,7 @@ aircraft's measured scale weight before flight.
 - The FS-CT6B manufacturer manual does not document a user-configurable
   failsafe. The measured FS-R6B behavior is loss of all CH1-CH4 PWM rather than
   holding a flight command indefinitely; the MCU detects that condition.
+- Physical-gimbal verification captured 1,000/1,000 valid rows and confirmed
+  Mode 2: right-horizontal CH1, right-vertical CH2, left-vertical CH3, and
+  left-horizontal CH4. All rows were disarmed, failsafe-free, mask 31, and had
+  zero rejected CH1-CH4 pulses.

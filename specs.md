@@ -163,9 +163,10 @@ The BMP180 is not connected for first flight.
 ### FlySky FS-CT6B transmitter and FS-R6B receiver
 
 The transmitter is an FS-CT6B using the AFHDS protocol. Guided endpoint data
-confirms the Mode 2 control layout: CH3 is left-stick vertical throttle and CH4
-is left-stick horizontal yaw. The manufacturer's FS-CT6B manual does not
-document a user-configurable failsafe.
+and a dedicated physical-gimbal capture confirm the Mode 2 control layout:
+right-horizontal is CH1 roll, right-vertical is CH2 pitch, left-vertical is CH3
+throttle, and left-horizontal is CH4 yaw. The manufacturer's FS-CT6B manual
+does not document a user-configurable failsafe.
 
 | Channel | Function | Mega pin |
 | --- | --- | --- |
@@ -336,3 +337,16 @@ pulse counter remained zero. Subtracting the configured 250 ms MCU validity
 window leaves approximately 0.68 s for operator reaction plus receiver-side
 PWM continuation. This is an inference, because the log records the cue rather
 than the exact physical instant the transmitter switch opened.
+
+The physical-layout capture then recorded exactly 100 samples at each of ten
+gimbal positions. All 1,000 rows had `armed=0`, `failsafe=0`, alive mask 31,
+and zero rejected CH1-CH4 pulses. The detected endpoint-pair deltas were:
+
+- right-horizontal: CH1, +770.32 us;
+- right-vertical: CH2, +654.28 us;
+- left-vertical: CH3, +684.12 us;
+- left-horizontal: CH4, +775.20 us.
+
+The largest paired cross-axis change was only 3.60 us. Start-to-end centre/low
+drift was -0.24 us on CH1, +3.24 us on CH2, +0.96 us on CH3, and +0.36 us on
+CH4. This conclusively verifies the programmed transmitter layout as Mode 2.

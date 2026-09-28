@@ -78,6 +78,11 @@ left-horizontal phases deliberately use mid-throttle to prevent the low-
 throttle/yaw-right arming gesture. At completion the tool reports the dominant
 channel for each physical axis and states whether the result matches Mode 2.
 
+The hardware capture in `tx-physical-layout.csv` confirmed Mode 2 across 1,000
+valid rows. Physical-axis endpoint deltas were +770 us on right-horizontal
+CH1, +654 us on right-vertical CH2, +684 us on left-vertical CH3, and +775 us
+on left-horizontal CH4. No flight channel became stale or rejected a pulse.
+
 ## Guided IMU alignment capture
 
 After receiver health passes, capture the real MPU mounting and axis signs:
