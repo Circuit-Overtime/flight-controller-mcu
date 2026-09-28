@@ -22,7 +22,9 @@ from pathlib import Path
 import serial
 
 
-def _summary(rows: list[dict[str, str]]) -> None:
+def _summary(
+    rows: list[dict[str, str]], tx_off_cue_host_s: float | None = None
+) -> None:
     if not rows:
         print("No telemetry rows captured.")
         return
@@ -51,6 +53,36 @@ def _summary(rows: list[dict[str, str]]) -> None:
         masks = sorted({int(float(row["rx_alive_mask"])) for row in rows})
         print(f"observed RX alive masks: {masks} (flight channels require bits 0-3)")
 
+    if tx_off_cue_host_s is not None:
+        first_stale = next(
+            (
+                row
+                for row in rows
+                if float(row["_host_s"]) >= tx_off_cue_host_s
+                if int(float(row.get("rx_alive_mask", "0"))) != 15
+            ),
+            None,
+        )
+        first_failsafe = next(
+            (
+                row
+                for row in rows
+                if float(row["_host_s"]) >= tx_off_cue_host_s
+                if int(float(row.get("failsafe", "0"))) != 0
+            ),
+            None,
+        )
+        for label, row in (
+            ("first non-15 RX mask", first_stale),
+            ("failsafe assertion", first_failsafe),
+        ):
+            if row is None:
+                print(f"{label}: not observed after transmitter-off cue")
+                continue
+            latency_s = float(row["_host_s"]) - tx_off_cue_host_s
+            print(f"cue to {label}: {latency_s:.3f} s")
+        print("Latency includes the operator's reaction time after the cue.")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -60,7 +92,21 @@ def main() -> int:
     parser.add_argument(
         "output", nargs="?", type=Path, default=Path("logs/telemetry.csv")
     )
+    parser.add_argument(
+        "--tx-off-after",
+        type=float,
+        metavar="SECONDS",
+        help=(
+            "print and log a transmitter-off cue this many seconds after the "
+            "telemetry header; propellers must be removed"
+        ),
+    )
     args = parser.parse_args()
+    if args.tx_off_after is not None:
+        if args.tx_off_after <= 3.0:
+            parser.error("--tx-off-after must be greater than 3 seconds")
+        if args.tx_off_after >= args.seconds:
+            parser.error("--tx-off-after must occur before capture ends")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     events_path = args.output.with_suffix(".events.txt")
@@ -68,6 +114,8 @@ def main() -> int:
     header: list[str] | None = None
     opened_at = time.monotonic()
     capture_started: float | None = None
+    countdown_announced: set[int] = set()
+    tx_off_cue_host_s: float | None = None
 
     print(
         f"Capturing {args.port} @ {args.baud} for {args.seconds:.1f} s "
@@ -88,6 +136,24 @@ def main() -> int:
                         return 1
                 elif now - capture_started >= args.seconds:
                     break
+
+                if capture_started is not None and args.tx_off_after is not None:
+                    elapsed = now - capture_started
+                    for remaining in (3, 2, 1):
+                        if (
+                            elapsed >= args.tx_off_after - remaining
+                            and remaining not in countdown_announced
+                        ):
+                            print(f"Transmitter off in {remaining}...", flush=True)
+                            countdown_announced.add(remaining)
+                    if elapsed >= args.tx_off_after and tx_off_cue_host_s is None:
+                        tx_off_cue_host_s = time.monotonic() - opened_at
+                        print("*** SWITCH TRANSMITTER OFF NOW ***", flush=True)
+                        events_file.write(
+                            f"{tx_off_cue_host_s:.6f},# OPERATOR CUE: "
+                            "SWITCH TRANSMITTER OFF NOW\n"
+                        )
+                        events_file.flush()
 
                 payload = ser.readline()
                 if not payload:
@@ -121,12 +187,23 @@ def main() -> int:
                     continue
 
                 writer.writerow([f"{host_s:.6f}", *parts])
-                rows.append(dict(zip(header, parts)))
+                row = dict(zip(header, parts))
+                row["_host_s"] = f"{host_s:.6f}"
+                rows.append(row)
+                if (
+                    args.tx_off_after is not None
+                    and int(float(row.get("armed", "0"))) != 0
+                ):
+                    print(
+                        "[capture] controller became armed; aborting loss test.",
+                        file=sys.stderr,
+                    )
+                    return 1
     except (OSError, serial.SerialException) as exc:
         print(f"[capture] {exc}", file=sys.stderr)
         return 1
 
-    _summary(rows)
+    _summary(rows, tx_off_cue_host_s)
     print(f"Events written to {events_path}")
     return 0
 

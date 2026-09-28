@@ -94,4 +94,7 @@ aircraft's measured scale weight before flight.
   zero failsafe rows, and zero rejected pulses on CH1-CH4.
 - Transmitter-off test: the FS-R6B stopped refreshing flight-channel PWM.
   Firmware transitioned from mask 15 through one staggered mask-8 row to mask
-  0, asserted failsafe, and retained failsafe for all remaining 579 rows.
+  0, asserted failsafe, and retained failsafe for all remaining 579 rows. The
+  operator reported switching the transmitter off at about 10 s, while stale
+  PWM was first observed roughly 6-7 s later. This estimated receiver-side
+  delay requires a cue-timed repeat and is not accepted for flight.

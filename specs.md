@@ -293,8 +293,10 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
 7. Review all four required prop-off logs.
-8. Transmitter-loss detection is verified. Repeat an armed prop-off loss test
-   later to observe the physical disarm transition under armed state.
+8. Transmitter-loss detection eventually asserted in the first capture, but an
+   estimated 6-7 s receiver-side PWM delay remains unresolved. Repeat with a
+   recorded switch-off cue, configure native radio failsafe if available, then
+   perform an armed prop-off test of the physical disarm transition.
 9. Perform motor-correction tests with propellers removed: the motors on the
    physically lowered side must receive more command.
 10. Establish thrust margin and hover throttle before attempting PID tuning in
@@ -318,4 +320,8 @@ A subsequent transmitter-off capture showed 702 healthy rows at alive mask 15,
 one staggered-expiry row at mask 8, then 579 consecutive rows at mask 0 with
 failsafe asserted. No pulses were rejected. The raw values remained frozen at
 their last valid measurements while their timestamps expired, confirming that
-the FS-R6B stops refreshing usable PWM and the firmware detects link loss.
+the FS-R6B eventually stops refreshing usable PWM and the firmware detects link
+loss. The CH1 peak at 1600 us was an operator-confirmed accidental stick bump,
+not a rejected or missing sample. Because transmitter switch-off was estimated
+at about 10 s and stale PWM appeared roughly 6-7 s later, this test does not yet
+clear receiver-loss latency for flight; a cue-timed repeat is required.

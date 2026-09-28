@@ -98,7 +98,13 @@ Keep all propellers removed for every test in this section.
 
 3. **Receiver loss — 30 seconds**
    - Start with the transmitter on and receiver healthy.
-   - Switch the transmitter off approximately 10 seconds into the capture.
+   - Run the timed loss capture:
+     ```bash
+     python simulator/capture_telemetry.py /dev/ttyACM0 460800 30 \
+       logs/rx-loss-repeat.csv --tx-off-after 10
+     ```
+   - Switch the transmitter off at the printed cue. The cue is recorded in the
+     event file so receiver and firmware detection latency can be measured.
    - Confirm `failsafe=1`, an RX alive-mask bit clears, and armed output cannot
      persist. Perform this test without propellers.
 
@@ -119,10 +125,16 @@ The logs must establish all of the following before changing PID gains:
 4. Accelerometer magnitude close to 1 g while stationary.
 5. Roll, pitch, and yaw signs match the mixer and physical airframe.
 6. Control-loop timing remains close to 5000 us without large periodic stalls.
-7. Receiver loss produces a disarm after the configured 250 ms validity window.
+7. Receiver loss produces a disarm promptly. The firmware's 250 ms validity
+   window begins only after the receiver stops refreshing PWM; receiver-side
+   hold or failsafe latency must be measured separately from that window.
 
-Normal RX continuity and transmitter-loss detection have passed on the current
-hardware. An armed, prop-off loss test remains a later physical-output check.
+Normal RX continuity has passed on the current hardware. The first transmitter-
+off capture eventually asserted firmware failsafe, but the approximate 6-7 s
+delay between the operator's switch-off and stale PWM is not cleared for flight.
+Repeat with the timed cue above, then configure the radio system's native
+failsafe if supported. An armed, prop-off loss test remains a later physical-
+output check.
 
 Only after these gates pass should motor-on response tests be designed. Never
 run a propeller-equipped vibration or PID test on a loose indoor airframe.
