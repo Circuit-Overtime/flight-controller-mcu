@@ -65,6 +65,19 @@ Firmware stick endpoints, centres, deadband, direction, and arming thresholds
 must not be changed until this capture has been reviewed. The tool aborts
 immediately if telemetry reports that the controller became armed.
 
+To verify the transmitter's physical gimbal mode without assuming the labels
+programmed into it, run the same tool in physical-layout mode:
+
+```bash
+python simulator/guided_rx_capture.py /dev/ttyACM0 460800 100 \
+  logs/tx-physical-layout.csv --physical-layout
+```
+
+Follow the physical LEFT/RIGHT and vertical/horizontal prompts literally. The
+left-horizontal phases deliberately use mid-throttle to prevent the low-
+throttle/yaw-right arming gesture. At completion the tool reports the dominant
+channel for each physical axis and states whether the result matches Mode 2.
+
 ## Guided IMU alignment capture
 
 After receiver health passes, capture the real MPU mounting and axis signs:
