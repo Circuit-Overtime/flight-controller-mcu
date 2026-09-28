@@ -28,6 +28,9 @@ airframe changes.
 - Motor mass: 60 g each; 240 g total.
 - Propellers: 10 x 4.5 inch, two-blade nylon, 8 g each; 32 g total.
 - ESCs: four SparkFun 30 A units, throttle-calibrated together.
+- Present power wiring: all four ESC BEC 5 V outputs are tied to the common
+  5 V rail. The builder reports no abnormal current or heating in prior use,
+  but parallel compatibility has not been verified from an exact ESC datasheet.
 - Reliable continuous-spin threshold: approximately 1200 us on each motor.
 - Reported stable command range: approximately 1200-1800 us.
 
@@ -78,7 +81,14 @@ aircraft's measured scale weight before flight.
 2. Confirm M4 rotates clockwise when viewed from above.
 3. Confirm battery chemistry.
 4. Measure the complete all-up mass on a scale.
-5. Repeat a short RX-health capture after flashing the timestamp-race fix and
-   confirm flight-channel alive mask 15 with no false failsafe rows.
-6. Measure each motor's individual continuous-spin threshold after the final
+5. Identify the exact ESC/BEC model, rated BEC voltage/current, and whether its
+   manufacturer explicitly allows BEC outputs to operate in parallel.
+6. Establish a documented method that prevents USB and powered ESC BEC outputs
+   from driving the Mega 5 V rail against one another.
+7. Measure each motor's individual continuous-spin threshold after the final
    propellers and power system are installed.
+
+## Verified captures
+
+- RX health after timestamp-race fix: 427/427 rows reported alive mask 15,
+  zero failsafe rows, and zero rejected pulses on CH1-CH4.

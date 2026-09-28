@@ -100,6 +100,7 @@ M4 = throttle + roll - pitch - yaw
 | Propellers | 10 × 4.5 inch, two-blade nylon |
 | ESCs | Four SparkFun 30 A ESCs |
 | ESC calibration | All four throttle-calibrated together |
+| Current BEC wiring | Four BEC 5 V outputs paralleled; no observed heating, datasheet compatibility unverified |
 | ESC signalling | Standard Servo PWM at 50 Hz |
 | Disarmed command | 1000 us |
 | Reliable continuous-spin floor | 1200 us on all four motors |
@@ -120,6 +121,29 @@ LiPo is confirmed.
 - Current implementation uses the Arduino Servo library for the ESC outputs.
 - Pin 52 is also the Mega SPI SCK pin, so M1 currently prevents simultaneous
   use of hardware SPI.
+
+### Power-source topology
+
+The present build ties all four ESC BEC 5 V outputs to the same 5 V rail. That
+arrangement has operated without observed abnormal current or heating. However,
+no exact ESC datasheet has been provided that permits their regulator outputs
+to share current, so electrical compatibility remains unverified.
+
+Conservative validation wiring:
+
+- All ESC grounds remain connected to the common ground.
+- All four ESC signal wires remain connected to their assigned Mega pins.
+- For USB-powered bench logging with the flight battery connected, disconnect
+  and individually insulate all four ESC red/BEC wires so USB is the only
+  source driving the Mega 5 V rail.
+- For battery-only operation without USB, use one verified 5 V BEC output or a
+  dedicated regulator sized for the Mega, receiver, IMU, and indicators. Leave
+  the other ESC BEC outputs disconnected and insulated.
+- Do not connect the 3S battery directly to the Mega 5 V pin.
+
+The exact ESC label/datasheet and measured BEC output are still required to
+close this power-system verification item. USB and powered BEC outputs must not
+be combined on the 5 V rail until their isolation behavior is established.
 
 ### MPU6050
 
@@ -276,3 +300,17 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
     free flight.
 
 The aircraft is not cleared for an indoor first hover.
+
+## 13. Verified receiver results
+
+After correcting the RX timestamp-order race, a 427-row stationary hardware
+capture produced:
+
+- RX alive mask 15 in every row;
+- zero failsafe rows;
+- zero rejected pulses on CH1-CH4;
+- 5054 us mean control-loop interval.
+
+This verifies the A8-A11 mapping and normal receiver health. A separate
+transmitter-off capture is still required to verify the receiver's link-loss
+behavior.
