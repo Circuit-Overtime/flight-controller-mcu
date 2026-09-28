@@ -118,16 +118,17 @@
 
 
 // ---- Stick mapping (post-calibration) --------------------------------------
-// Raw endpoints measured from 100 samples per position (rx-guided.csv):
-//   roll:     1092 / 1490 / 1882 us  (left / centre / right)
-//   pitch:    1125 / 1430 / 1799 us  (down / centre / up)
-//   throttle: 1124 / 1466 / 1808 us  (low / midpoint / high)
-//   yaw:      1052 / 1462 / 1830 us  (left / centre / right)
+// Raw endpoints after physically centering all four TX trims, measured from
+// 100 samples per position (rx-guided-trims-centered.csv):
+//   roll:     1083 / 1476 / 1859 us  (left / centre / right)
+//   pitch:    1149 / 1447 / 1808 us  (down / centre / up)
+//   throttle: 1142 / 1510 / 1827 us  (low / midpoint / high)
+//   yaw:      1079 / 1502 / 1865 us  (left / centre / right)
 // Centred channels are shifted to 1500 by boot calibration. Throttle is capped
 // at 1700 to preserve 100 us of PID authority below MOTOR_MAX_US.
-#define STICK_DEAD_BAND_US      15        // ±15 µs around center -> zero input
+#define STICK_DEAD_BAND_US      30        // covers measured centered-yaw spikes
 #define STICK_RANGE_HALF_US     300       // 1500 ± 300 -> 1200..1800 effective
-#define STICK_THROTTLE_LO_US    1120      // measured low-stick 5th percentile
+#define STICK_THROTTLE_LO_US    1140      // centered-trim low-stick 5th percentile
 #define STICK_THROTTLE_HI_US    1700      // throttle saturates here
 
 // Maximum commanded angle (angle mode) and rate (acro / yaw).
@@ -161,17 +162,16 @@
 
 
 // ---- Arming / safety -------------------------------------------------------
-// Arm gesture: throttle low + yaw stick held to a pre-configured side for N ms.
-// Disarm: throttle low + opposite yaw stick.
-//
-// Arm gesture: throttle ≤ 1160 AND yaw ≥ 1800 for ARM_HOLD_MS. Disarm uses
-// throttle ≤ 1160 and yaw ≤ 1200. The throttle threshold is above every
-// observed low-stick sample (maximum 1148 us); yaw thresholds retain at least
-// ~60 us margin after boot centre correction.
-#define ARM_THROTTLE_MAX_US     1160      // measured low stick plus 12 us
+// Arm gesture: throttle low + yaw right. Disarm deliberately requires both
+// sticks at the bottom-left corner (throttle/yaw-left + pitch/roll-low), so an
+// ordinary in-flight yaw-left command cannot stop the motors.
+#define ARM_THROTTLE_MAX_US     1180      // measured low max 1168 us + 12 us
 #define ARM_YAW_LOW_US          1200      // yaw stick "held left"  (≤ this)
 #define ARM_YAW_HIGH_US         1800      // yaw stick "held right" (≥ this)
 #define ARM_HOLD_MS             1500      // gesture hold time
+#define DISARM_ROLL_LOW_US      1250      // full-left roll, with margin
+#define DISARM_PITCH_LOW_US     1250      // physical right-stick down, with margin
+#define DISARM_HOLD_MS          2000      // deliberate emergency/ground disarm
 
 // After arming completes, ignore roll / pitch / yaw setpoints for this long.
 // Throttle still works normally. Gives the pilot time to release the yaw

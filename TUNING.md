@@ -89,6 +89,13 @@ valid rows. Physical-axis endpoint deltas were +770 us on right-horizontal
 CH1, +654 us on right-vertical CH2, +684 us on left-vertical CH3, and +775 us
 on left-horizontal CH4. No flight channel became stale or rejected a pulse.
 
+After physically centering all four transmitter trims, the repeated endpoint
+capture measured roll 1083/1476/1859, pitch 1149/1447/1808, throttle
+1142/1510/1827, and yaw 1079/1502/1865 us. The low-throttle gate is therefore
+1180 us. A 30 us deadband covers the observed centered-yaw excursions. Keep all
+four physical trims centered; changing a trim after boot creates a false pilot
+command and invalidates these measured thresholds.
+
 ## Guided arm-switch capture
 
 Do not assign arm/disarm thresholds from a nominal 1000-2000 us range. With

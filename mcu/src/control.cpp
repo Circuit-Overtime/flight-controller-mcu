@@ -1,10 +1,9 @@
 #include "include/control.h"
 #include "include/config.h"
 
-// Arming gesture: throttle below ARM_THROTTLE_MAX_US AND yaw stick parked at
-// far-right (>= ARM_YAW_HIGH_US) for ARM_HOLD_MS ms triggers arm. Same with
-// yaw far-left to disarm. Holding the gesture is the safety: a brief flick
-// won't arm the drone.
+// Arming gesture: throttle low + yaw far-right for ARM_HOLD_MS. Disarming uses
+// a deliberate two-stick bottom-left corner for DISARM_HOLD_MS; yaw-left alone
+// must never stop the motors in flight.
 
 static bool     armed_;
 static uint32_t gesture_start_ms_;
@@ -46,6 +45,7 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
                         uint16_t throttle_us, uint16_t yaw_us,
                         bool failsafe, uint32_t now_ms) {
   bool was_armed = armed_;
+  bool suppress_for_disarm = false;
 
   // rxAlive() already tolerates missing frames for RX_ALIVE_TIMEOUT_US. Once
   // the caller reports failsafe, do not add another delay: disarm immediately.
@@ -56,6 +56,9 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
     bool thr_low   = (throttle_us <= ARM_THROTTLE_MAX_US);
     bool yaw_left  = (yaw_us      <= ARM_YAW_LOW_US);
     bool yaw_right = (yaw_us      >= ARM_YAW_HIGH_US);
+    bool disarm_corner = thr_low && yaw_left &&
+                         (roll_us  <= DISARM_ROLL_LOW_US) &&
+                         (pitch_us <= DISARM_PITCH_LOW_US);
 
     if (!armed_) {
       // Arm gesture: throttle low + yaw right.
@@ -69,10 +72,13 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
         gesture_start_ms_ = 0;
       }
     } else {
-      // Disarm gesture: throttle low + yaw left.
-      if (thr_low && yaw_left) {
+      // Disarm gesture: both Mode-2 sticks held at the bottom-left corner.
+      // Suppress commanded attitude/rate while it is held so the gesture does
+      // not itself request a sustained roll, pitch, or yaw disturbance.
+      if (disarm_corner) {
+        suppress_for_disarm = true;
         if (gesture_start_ms_ == 0) gesture_start_ms_ = now_ms;
-        else if (now_ms - gesture_start_ms_ >= ARM_HOLD_MS) {
+        else if (now_ms - gesture_start_ms_ >= DISARM_HOLD_MS) {
           armed_            = false;
           gesture_start_ms_ = 0;
         }
@@ -89,7 +95,7 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
   if ((!was_armed) && armed_) {
     settle_until_ms_ = now_ms + POST_ARM_SETTLE_MS;
   }
-  bool settling = (now_ms < settle_until_ms_);
+  bool suppress_sticks = (now_ms < settle_until_ms_) || suppress_for_disarm;
 
   // Map sticks to setpoints. Angle mode for roll/pitch; rate mode for yaw.
   float roll_n  = _stickNorm(roll_us);
@@ -97,9 +103,9 @@ Setpoints controlUpdate(uint16_t roll_us, uint16_t pitch_us,
   float yaw_n   = _stickNorm(yaw_us);
 
   Setpoints sp;
-  sp.angle_roll_deg  =  settling ? 0.0f : (roll_n  * MAX_TILT_DEG);
-  sp.angle_pitch_deg =  settling ? 0.0f : (pitch_n * MAX_TILT_DEG);
-  sp.yaw_rate_dps    =  settling ? 0.0f : (yaw_n   * MAX_YAW_RATE_DPS);
+  sp.angle_roll_deg  = suppress_sticks ? 0.0f : (roll_n  * MAX_TILT_DEG);
+  sp.angle_pitch_deg = suppress_sticks ? 0.0f : (pitch_n * MAX_TILT_DEG);
+  sp.yaw_rate_dps    = suppress_sticks ? 0.0f : (yaw_n   * MAX_YAW_RATE_DPS);
   sp.throttle_us     =  _throttleClamp(throttle_us);
   sp.armed           =  armed_;
   sp.just_armed      = (!was_armed) && armed_;
