@@ -82,8 +82,9 @@ def wait_for_header(ser: serial.Serial, timeout_s: float = 30.0) -> list[str]:
             missing = [name for name in required if name not in header]
             if missing:
                 raise RuntimeError(
-                    "firmware telemetry is missing required fields: "
-                    + ", ".join(missing)
+                    "the Mega is running an older telemetry firmware; "
+                    "compile and upload the current mcu/ sketch, then retry. "
+                    "Missing header fields: " + ", ".join(missing)
                 )
             return header
     raise TimeoutError("no firmware telemetry header received within 30 seconds")
