@@ -282,7 +282,11 @@ void loop() {
   float az = (raz - az_off) / MPU_ACCEL_LSB_PER_G;
   float gx = (rgx - gx_off) / MPU_GYRO_LSB_PER_DPS;
   float gy = (rgy - gy_off) / MPU_GYRO_LSB_PER_DPS;
-  float gz = (rgz - gz_off) / MPU_GYRO_LSB_PER_DPS;
+  // The mounted MPU's right-handed +Z reports counter-clockwise as positive,
+  // but pilot yaw-right and the mixer use clockwise as positive. Convert once
+  // at the sensor boundary so yaw setpoint, feedback, display, and mixer all
+  // share the same convention.
+  float gz = -(rgz - gz_off) / MPU_GYRO_LSB_PER_DPS;
   float temp_c = rtemp / 340.0f + 36.53f;
 
   float accel_roll  = atan2f(ay, az) * 57.29578f;

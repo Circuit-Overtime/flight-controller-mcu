@@ -46,8 +46,11 @@ does not establish thrust margin.
   axis.
 - The MPU6050 breakout is mounted flat and rigidly on the central breadboard.
 - Gyroscope X is used for roll rate, Y for pitch rate, and Z for yaw rate.
-- Positive-Y direction and all measured attitude signs must be verified using
-  the prop-off axis-sign log before powered lift.
+- The prop-off axis capture verifies positive roll as right-side-down and
+  positive pitch as nose-down.
+- The mounted MPU's raw positive-Z rotation is counter-clockwise. Firmware
+  negates corrected GZ at the sensor boundary so control-frame positive yaw is
+  clockwise/right, matching the stick and mixer convention.
 - Rigid mounting transfers frame, motor, and propeller vibration directly to
   the sensor; logged gyro and accelerometer noise must be reviewed before
   increasing derivative gain.
@@ -250,7 +253,8 @@ after arming so the pilot can release the yaw gesture.
 - Flight-control and MPU update rate: 200 Hz.
 - Roll and pitch: accelerometer/gyro complementary filter with alpha 0.98.
 - Yaw: integrated gyro for display; yaw control uses gyro rate because there is
-  no magnetometer or absolute-heading reference.
+  no magnetometer or absolute-heading reference. Positive displayed/control
+  yaw is clockwise when viewed from above.
 - Roll and pitch use cascaded control:
   - outer proportional angle loop produces a rate setpoint;
   - inner PID rate loop produces a PWM correction.
@@ -371,3 +375,37 @@ and zero rejected CH1-CH4 pulses. The detected endpoint-pair deltas were:
 The largest paired cross-axis change was only 3.60 us. Start-to-end centre/low
 drift was -0.24 us on CH1, +3.24 us on CH2, +0.96 us on CH3, and +0.36 us on
 CH4. This conclusively verifies the programmed transmitter layout as Mode 2.
+
+## 14. Verified IMU axis results
+
+The guided IMU capture contains 1,200 finite rows: exactly 100 rows in each of
+12 phases. Every row remained disarmed and failsafe-free; every flight-critical
+RX mask bit remained alive and every CH1-CH4 rejection counter stayed at zero.
+
+Measured physical signs before the GZ convention correction were:
+
+| Physical movement | Attitude result | Primary gyro | Primary accelerometer |
+| --- | --- | --- | --- |
+| Lower right side | roll positive, ending near +27 degrees | GX positive | AY positive |
+| Lower left side | roll negative, ending near -23 degrees | GX negative | AY negative |
+| Lower nose | pitch positive, ending near +24 degrees | GY positive | AX negative |
+| Raise nose | pitch negative, ending near -23 degrees | GY negative | AX positive |
+| Clockwise yaw | yaw/GZ negative in raw sensor convention | GZ negative | not applicable |
+| Counter-clockwise yaw | yaw/GZ positive in raw sensor convention | GZ positive | not applicable |
+
+The roll and pitch signs already oppose disturbances correctly through the
+current PID and mixer. Raw yaw sign was opposite the mixer's documented
+clockwise-positive convention, so corrected GZ is now negated once in
+`mcu.ino`. A post-flash yaw capture should therefore show clockwise positive
+and counter-clockwise negative.
+
+Across the 600 stationary level samples, accelerometer means were -0.00684 g,
++0.00190 g, and +1.00064 g on X/Y/Z. Gyro means were -0.00595, -0.00635, and
+-0.00245 degrees/s with standard deviations 0.05343, 0.06021, and 0.03679
+degrees/s. Mean control interval was 5052.64 us and maximum was 5160 us.
+
+Hand-induced cross-axis rates occurred during movement, but the held attitude
+signs were unambiguous. Net yaw change inside each roll/pitch capture was at
+most 1.4 degrees. Larger yaw offsets between phases came from repositioning the
+airframe outside the recorded movement and are expected because no magnetometer
+provides an absolute heading reference.

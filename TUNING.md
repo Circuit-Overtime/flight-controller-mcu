@@ -107,6 +107,12 @@ consecutive armed rows (about 70 ms at the telemetry rate) confirm the state and
 abort the capture with throttle, yaw, raw-channel, and motor diagnostics. This
 host-side confirmation does not alter firmware arming or failsafe behavior.
 
+The first complete hardware capture verified positive roll as right-side-down
+and positive pitch as nose-down. Raw MPU GZ was negative for clockwise motion;
+firmware now negates corrected GZ so positive control yaw is clockwise/right,
+matching the transmitter and mixer. Reflash before subsequent telemetry: the
+`gz_dps` and integrated `yaw` fields then use this control-frame convention.
+
 ## Required prop-off captures
 
 Keep all propellers removed for every test in this section.

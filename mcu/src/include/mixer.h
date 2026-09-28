@@ -22,7 +22,7 @@
 //   throttle_us   — base throttle; M1..M4 all add this
 //   roll_us       — positive = roll right (right side dips). Right motors
 //                   slow (-roll_us); left motors speed up (+roll_us).
-//   pitch_us      — positive = pitch up (nose lifts). Front motors slow
+//   pitch_us      — positive = pitch forward (nose dips). Front motors slow
 //                   (-pitch_us); rear motors speed up (+pitch_us).
 //   yaw_us        — positive = yaw right (nose swings right). Net body
 //                   torque must be CW; CCW props produce CW reaction torque,
