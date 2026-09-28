@@ -104,6 +104,8 @@ IMU_FIELDS = (
     "gz_dps",
 )
 
+ARMED_CONFIRM_ROWS = 3
+
 
 def wait_for_header(ser: serial.Serial, timeout_s: float = 30.0) -> list[str]:
     deadline = time.monotonic() + timeout_s
@@ -131,8 +133,10 @@ def read_phase(
     header: list[str],
     count: int,
     timeout_s: float,
-) -> list[tuple[float, list[str]]]:
+) -> tuple[list[tuple[float, list[str]]], int]:
     rows: list[tuple[float, list[str]]] = []
+    armed_streak: list[list[str]] = []
+    isolated_armed_rows = 0
     armed_index = header.index("armed")
     failsafe_index = header.index("failsafe")
     mask_index = header.index("rx_alive_mask")
@@ -155,7 +159,32 @@ def read_phase(
         if not all(math.isfinite(value) for value in values):
             continue
         if int(values[armed_index]) != 0:
-            raise RuntimeError("controller became armed; capture aborted")
+            armed_streak.append(parts)
+            if len(armed_streak) >= ARMED_CONFIRM_ROWS:
+                last = armed_streak[-1]
+                details = []
+                for name in (
+                    "t_ms",
+                    "ch3",
+                    "ch4",
+                    "raw_ch3",
+                    "raw_ch4",
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                ):
+                    if name in header:
+                        details.append(f"{name}={last[header.index(name)]}")
+                raise RuntimeError(
+                    f"controller reported armed=1 for {ARMED_CONFIRM_ROWS} "
+                    "consecutive rows; capture aborted; " + " ".join(details)
+                )
+            # Do not put suspect armed telemetry into an IMU calibration phase.
+            continue
+        if armed_streak:
+            isolated_armed_rows += len(armed_streak)
+            armed_streak.clear()
         if int(values[failsafe_index]) != 0:
             raise RuntimeError("receiver entered failsafe; capture aborted")
         if (int(values[mask_index]) & 0x0F) != 0x0F:
@@ -164,7 +193,8 @@ def read_phase(
 
     if len(rows) != count:
         raise TimeoutError(f"received only {len(rows)}/{count} valid rows")
-    return rows
+    isolated_armed_rows += len(armed_streak)
+    return rows, isolated_armed_rows
 
 
 def print_summary(header: list[str], rows: list[list[str]]) -> None:
@@ -228,7 +258,7 @@ def main() -> int:
                 input(prompt)
 
                 ser.reset_input_buffer()
-                received_rows = read_phase(
+                received_rows, isolated_armed_rows = read_phase(
                     ser,
                     header,
                     args.samples,
@@ -248,6 +278,13 @@ def main() -> int:
                     )
                 output_file.flush()
                 print(f"Captured exactly {len(rows)} fresh samples.")
+                if isolated_armed_rows:
+                    print(
+                        "  WARNING: ignored "
+                        f"{isolated_armed_rows} isolated armed telemetry "
+                        "row(s); three consecutive rows are required to "
+                        "confirm host-side arming status."
+                    )
                 print_summary(header, rows)
     except KeyboardInterrupt:
         print("\nCapture cancelled; completed phases remain in the output file.")

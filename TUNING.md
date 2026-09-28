@@ -101,6 +101,12 @@ capture completes. Do not move the transmitter controls. The tool aborts if the
 controller arms, receiver failsafe activates, or any flight channel becomes
 stale.
 
+Because the serial stream has no checksum, the host tool excludes an isolated
+`armed=1` row and reports a warning rather than treating it as conclusive. Three
+consecutive armed rows (about 70 ms at the telemetry rate) confirm the state and
+abort the capture with throttle, yaw, raw-channel, and motor diagnostics. This
+host-side confirmation does not alter firmware arming or failsafe behavior.
+
 ## Required prop-off captures
 
 Keep all propellers removed for every test in this section.
