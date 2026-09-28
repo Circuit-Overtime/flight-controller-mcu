@@ -83,6 +83,22 @@ valid rows. Physical-axis endpoint deltas were +770 us on right-horizontal
 CH1, +654 us on right-vertical CH2, +684 us on left-vertical CH3, and +775 us
 on left-horizontal CH4. No flight channel became stale or rejected a pulse.
 
+## Guided arm-switch capture
+
+Do not assign arm/disarm thresholds from a nominal 1000-2000 us range. With
+propellers removed, capture the chosen physical two-position toggle at SAFE,
+ARM, then SAFE again:
+
+```bash
+python simulator/guided_rx_capture.py /dev/ttyACM0 460800 100 \
+  logs/arm-switch-guided.csv --arm-switch
+```
+
+Keep throttle lowest and all flight sticks centered. Move only the chosen
+toggle. The tool reports CH5 and CH6 endpoints, detects polarity, verifies the
+return to SAFE, and rejects a capture in which a primary stick moved. Firmware
+must retain the current disarmed behavior until this capture is reviewed.
+
 ## Guided IMU alignment capture
 
 After receiver health passes, capture the real MPU mounting and axis signs:

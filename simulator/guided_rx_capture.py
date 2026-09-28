@@ -113,7 +113,26 @@ PHYSICAL_LAYOUT_PHASES = (
     ),
 )
 
+ARM_SWITCH_PHASES = (
+    (
+        "arm_switch_safe_start",
+        "Choose the physical two-position toggle to use for ARM/KILL. Put it "
+        "in the SAFE/OFF position; keep throttle LOWEST and other sticks centered.",
+    ),
+    (
+        "arm_switch_arm",
+        "Move only that same toggle to the ARM/ON position; keep throttle "
+        "LOWEST and other sticks centered.",
+    ),
+    (
+        "arm_switch_safe_end",
+        "Return only that toggle to SAFE/OFF; keep throttle LOWEST and other "
+        "sticks centered.",
+    ),
+)
+
 RAW_CHANNELS = ("raw_ch1", "raw_ch2", "raw_ch3", "raw_ch4")
+AUX_CHANNELS = ("raw_ch5", "raw_ch6")
 
 
 def wait_for_header(ser: serial.Serial, timeout_s: float = 30.0) -> list[str]:
@@ -125,7 +144,13 @@ def wait_for_header(ser: serial.Serial, timeout_s: float = 30.0) -> list[str]:
         line = payload.decode("ascii", errors="replace").strip()
         if line.startswith("roll,"):
             header = line.split(",")
-            required = (*RAW_CHANNELS, "rx_alive_mask", "armed", "failsafe")
+            required = (
+                *RAW_CHANNELS,
+                *AUX_CHANNELS,
+                "rx_alive_mask",
+                "armed",
+                "failsafe",
+            )
             missing = [name for name in required if name not in header]
             if missing:
                 raise RuntimeError(
@@ -177,9 +202,11 @@ def read_phase(
     return rows
 
 
-def print_phase_summary(header: list[str], rows: list[list[str]]) -> None:
-    indices = {name: header.index(name) for name in RAW_CHANNELS}
-    for name in RAW_CHANNELS:
+def print_phase_summary(
+    header: list[str], rows: list[list[str]], channels: tuple[str, ...] = RAW_CHANNELS
+) -> None:
+    indices = {name: header.index(name) for name in channels}
+    for name in channels:
         values = [int(float(row[indices[name]])) for row in rows]
         print(
             f"  {name}: mean={statistics.mean(values):.2f} "
@@ -245,6 +272,50 @@ def print_physical_layout_result(
         print("RESULT: Mapping is not the expected Mode 2 CH1/CH2/CH3/CH4 layout.")
 
 
+def print_arm_switch_result(
+    header: list[str], phase_rows: dict[str, list[list[str]]]
+) -> None:
+    indices = {name: header.index(name) for name in (*RAW_CHANNELS, *AUX_CHANNELS)}
+
+    def mean(phase: str, channel: str) -> float:
+        index = indices[channel]
+        return statistics.mean(float(row[index]) for row in phase_rows[phase])
+
+    print("\nCandidate arm-switch mapping:")
+    changes: dict[str, float] = {}
+    returns: dict[str, float] = {}
+    for channel in AUX_CHANNELS:
+        safe_start = mean("arm_switch_safe_start", channel)
+        arm = mean("arm_switch_arm", channel)
+        safe_end = mean("arm_switch_safe_end", channel)
+        safe_reference = (safe_start + safe_end) / 2.0
+        changes[channel] = arm - safe_reference
+        returns[channel] = safe_end - safe_start
+        print(
+            f"  {channel.replace('raw_', '').upper()}: "
+            f"SAFE {safe_start:.1f} -> ARM {arm:.1f} -> SAFE {safe_end:.1f} us; "
+            f"arm delta={changes[channel]:+.1f} us"
+        )
+
+    channel = max(AUX_CHANNELS, key=lambda name: abs(changes[name]))
+    primary_drift = max(
+        abs(mean("arm_switch_arm", name) - mean("arm_switch_safe_start", name))
+        for name in RAW_CHANNELS
+    )
+    if abs(changes[channel]) < 200.0:
+        print("RESULT: Inconclusive; neither CH5 nor CH6 changed by 200 us.")
+    elif abs(returns[channel]) > 50.0:
+        print("RESULT: Inconclusive; the selected auxiliary channel did not return to SAFE repeatably.")
+    elif primary_drift > 50.0:
+        print("RESULT: Inconclusive; a primary flight stick moved during the switch test.")
+    else:
+        polarity = "HIGH" if changes[channel] > 0.0 else "LOW"
+        print(
+            f"RESULT: Candidate arm control is "
+            f"{channel.replace('raw_', '').upper()}; ARM is {polarity}."
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("port", nargs="?", default="/dev/ttyACM0")
@@ -253,17 +324,28 @@ def main() -> int:
     parser.add_argument(
         "output", nargs="?", type=Path, default=Path("logs/rx-guided.csv")
     )
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--physical-layout",
         action="store_true",
         help="prompt by physical gimbal axis and identify the transmitter mode",
+    )
+    mode_group.add_argument(
+        "--arm-switch",
+        action="store_true",
+        help="capture SAFE/ARM/SAFE positions and identify the auxiliary channel",
     )
     args = parser.parse_args()
     if args.samples < 2:
         parser.error("samples must be at least 2")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    phases = PHYSICAL_LAYOUT_PHASES if args.physical_layout else PHASES
+    if args.physical_layout:
+        phases = PHYSICAL_LAYOUT_PHASES
+    elif args.arm_switch:
+        phases = ARM_SWITCH_PHASES
+    else:
+        phases = PHASES
     print("PROPELLERS MUST BE REMOVED.")
     print(f"Opening {args.port} @ {args.baud}; waiting for firmware boot/header...")
 
@@ -305,10 +387,17 @@ def main() -> int:
                     )
                 output_file.flush()
                 print(f"Captured exactly {len(rows)} fresh samples.")
-                print_phase_summary(header, rows)
+                summary_channels = (
+                    (*RAW_CHANNELS, *AUX_CHANNELS)
+                    if args.arm_switch
+                    else RAW_CHANNELS
+                )
+                print_phase_summary(header, rows, summary_channels)
 
             if args.physical_layout:
                 print_physical_layout_result(header, captured_by_phase)
+            elif args.arm_switch:
+                print_arm_switch_result(header, captured_by_phase)
     except KeyboardInterrupt:
         print("\nCapture cancelled; completed phases remain in the output file.")
         return 130
