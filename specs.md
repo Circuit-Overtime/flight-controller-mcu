@@ -81,6 +81,10 @@ Aircraft viewed from above, with the front in the positive-X direction:
 | M3 | Rear-left | Counter-clockwise (CCW) | 48 |
 | M4 | Front-left | Clockwise (CW) | 46 |
 
+M4's intended clockwise direction has been explicitly confirmed by the
+operator. All four actual powered rotation directions still require the planned
+propeller-free verification after uploading firmware.
+
 Each propeller must have the correct handedness for its motor direction and
 must push air downward. Motor direction, propeller type, and motor numbering
 must all be physically rechecked before fitting propellers.
