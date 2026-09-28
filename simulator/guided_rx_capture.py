@@ -298,12 +298,28 @@ def print_arm_switch_result(
         )
 
     channel = max(AUX_CHANNELS, key=lambda name: abs(changes[name]))
+    channel_number = int(channel.removeprefix("raw_ch"))
+    channel_bit = 1 << (channel_number - 1)
+    mask_index = header.index("rx_alive_mask")
+    all_rows = [row for rows in phase_rows.values() for row in rows]
+    alive_rows = sum(
+        (int(float(row[mask_index])) & channel_bit) != 0 for row in all_rows
+    )
+    print(
+        f"  {channel.replace('raw_', '').upper()} alive: "
+        f"{alive_rows}/{len(all_rows)} rows"
+    )
     primary_drift = max(
         abs(mean("arm_switch_arm", name) - mean("arm_switch_safe_start", name))
         for name in RAW_CHANNELS
     )
     if abs(changes[channel]) < 200.0:
         print("RESULT: Inconclusive; neither CH5 nor CH6 changed by 200 us.")
+    elif alive_rows != len(all_rows):
+        print(
+            "RESULT: Rejected; the candidate arm channel became stale and "
+            "is not safe for flight-critical switching."
+        )
     elif abs(returns[channel]) > 50.0:
         print("RESULT: Inconclusive; the selected auxiliary channel did not return to SAFE repeatably.")
     elif primary_drift > 50.0:

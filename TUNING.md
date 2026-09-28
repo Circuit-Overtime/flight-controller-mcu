@@ -96,8 +96,9 @@ python simulator/guided_rx_capture.py /dev/ttyACM0 460800 100 \
 
 Keep throttle lowest and all flight sticks centered. Move only the chosen
 toggle. The tool reports CH5 and CH6 endpoints, detects polarity, verifies the
-return to SAFE, and rejects a capture in which a primary stick moved. Firmware
-must retain the current disarmed behavior until this capture is reviewed.
+return to SAFE, requires the selected auxiliary channel to remain alive in
+every row, and rejects a capture in which a primary stick moved. Firmware must
+retain the current disarmed behavior until this capture is reviewed.
 
 ## Guided IMU alignment capture
 
