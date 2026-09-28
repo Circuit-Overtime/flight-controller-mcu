@@ -92,9 +92,10 @@ aircraft's measured scale weight before flight.
 
 - RX health after timestamp-race fix: 427/427 rows reported alive mask 15,
   zero failsafe rows, and zero rejected pulses on CH1-CH4.
-- Transmitter-off test: the FS-R6B stopped refreshing flight-channel PWM.
-  Firmware transitioned from mask 15 through one staggered mask-8 row to mask
-  0, asserted failsafe, and retained failsafe for all remaining 579 rows. The
-  operator reported switching the transmitter off at about 10 s, while stale
-  PWM was first observed roughly 6-7 s later. This estimated receiver-side
-  delay requires a cue-timed repeat and is not accepted for flight.
+- Cue-timed transmitter-off repeat: 1,284 valid rows, zero rejected CH1-CH4
+  pulses, and `armed=0` throughout. The RX changed directly from mask 15 to
+  mask 0 and firmware failsafe asserted on the same row, 0.930 s after the
+  operator cue. Of that interval, 250 ms is the configured MCU stale timeout;
+  the remaining approximately 0.68 s includes receiver behavior and operator
+  reaction. The earlier estimated 6-7 s result is superseded by this timed
+  measurement.

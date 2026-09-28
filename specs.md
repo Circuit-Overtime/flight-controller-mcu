@@ -293,10 +293,9 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
 7. Review all four required prop-off logs.
-8. Transmitter-loss detection eventually asserted in the first capture, but an
-   estimated 6-7 s receiver-side PWM delay remains unresolved. Repeat with a
-   recorded switch-off cue, configure native radio failsafe if available, then
-   perform an armed prop-off test of the physical disarm transition.
+8. The cue-timed transmitter-loss repeat asserted failsafe after 0.930 s. Exact
+   transmitter model and native failsafe configuration remain to be verified;
+   then perform an armed prop-off test of the physical disarm transition.
 9. Perform motor-correction tests with propellers removed: the motors on the
    physically lowered side must receive more command.
 10. Establish thrust margin and hover throttle before attempting PID tuning in
@@ -322,6 +321,14 @@ failsafe asserted. No pulses were rejected. The raw values remained frozen at
 their last valid measurements while their timestamps expired, confirming that
 the FS-R6B eventually stops refreshing usable PWM and the firmware detects link
 loss. The CH1 peak at 1600 us was an operator-confirmed accidental stick bump,
-not a rejected or missing sample. Because transmitter switch-off was estimated
-at about 10 s and stale PWM appeared roughly 6-7 s later, this test does not yet
-clear receiver-loss latency for flight; a cue-timed repeat is required.
+not a rejected or missing sample. Its approximate switch-off timing was not
+used as the final latency measurement.
+
+The cue-timed repeat captured 1,284 valid rows. All 467 pre-loss rows had mask
+15 and `failsafe=0`; the remaining 817 rows had mask 0 and `failsafe=1`. The
+transition occurred 0.930 s after the operator cue, with failsafe asserted on
+the first mask-0 row. `armed` remained 0 throughout and every CH1-CH4 rejected-
+pulse counter remained zero. Subtracting the configured 250 ms MCU validity
+window leaves approximately 0.68 s for operator reaction plus receiver-side
+PWM continuation. This is an inference, because the log records the cue rather
+than the exact physical instant the transmitter switch opened.

@@ -129,12 +129,14 @@ The logs must establish all of the following before changing PID gains:
    window begins only after the receiver stops refreshing PWM; receiver-side
    hold or failsafe latency must be measured separately from that window.
 
-Normal RX continuity has passed on the current hardware. The first transmitter-
-off capture eventually asserted firmware failsafe, but the approximate 6-7 s
-delay between the operator's switch-off and stale PWM is not cleared for flight.
-Repeat with the timed cue above, then configure the radio system's native
-failsafe if supported. An armed, prop-off loss test remains a later physical-
-output check.
+Normal RX continuity has passed on the current hardware. The cue-timed repeat
+measured 0.930 s from the printed switch-off cue to mask 0 and failsafe. The
+transition was direct from mask 15 to 0, with no rejected pulses and no armed
+rows. The configured MCU stale timeout accounts for 250 ms; the remaining
+approximately 0.68 s includes operator reaction and the interval during which
+the receiver continued producing valid PWM. Confirm and configure the radio
+system's native failsafe before flight. An armed, prop-off loss test remains a
+later physical-output check.
 
 Only after these gates pass should motor-on response tests be designed. Never
 run a propeller-equipped vibration or PID test on a loose indoor airframe.
