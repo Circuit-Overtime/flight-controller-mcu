@@ -203,8 +203,8 @@ physical-axis test.
 | CH2 | Pitch | A9 / PCINT17 |
 | CH3 | Throttle | A10 / PCINT18 |
 | CH4 | Yaw | A11 / PCINT19 |
-| CH5 | Unused | A12 / PCINT20 |
-| CH6 | Unused | A13 / PCINT21 |
+| CH5 | Reserved arm switch; signal not connected | A12 / PCINT20 |
+| CH6 | Reserved; signal not connected | A13 / PCINT21 |
 
 - PWM capture uses the Port K pin-change interrupt.
 - Only pulses from 800 through 2200 us are accepted.
@@ -370,8 +370,11 @@ PWM continuation. This is an inference, because the log records the cue rather
 than the exact physical instant the transmitter switch opened.
 
 The physical-layout capture then recorded exactly 100 samples at each of ten
-gimbal positions. All 1,000 rows had `armed=0`, `failsafe=0`, alive mask 31,
-and zero rejected CH1-CH4 pulses. The detected endpoint-pair deltas were:
+gimbal positions. All 1,000 rows had `armed=0`, `failsafe=0`, every critical
+CH1-CH4 alive bit set, and zero rejected CH1-CH4 pulses. Although mask 31 was
+observed, CH5 was physically disconnected: its floating A12 input likely
+coupled to an adjacent PWM signal, so bit 4 is not evidence of CH5 health. The
+detected endpoint-pair deltas were:
 
 - right-horizontal: CH1, +770.32 us;
 - right-vertical: CH2, +654.28 us;

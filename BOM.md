@@ -56,6 +56,7 @@ confirmation. Firmware voltage thresholds must match the confirmed chemistry.
 | Transmitter | FlySky FS-CT6B, AFHDS, Mode 2 verified by physical-axis capture |
 | Receiver | FlySky FS-R6B, individual PWM channels |
 | Receiver order | CH1 roll, CH2 pitch, CH3 throttle, CH4 yaw |
+| Receiver auxiliary wiring | CH5 and CH6 signals physically disconnected |
 | Pressure sensor | BMP180 available but intentionally disconnected for first flight |
 
 Rigid IMU mounting can transmit motor/propeller vibration directly into the
@@ -106,5 +107,6 @@ aircraft's measured scale weight before flight.
   holding a flight command indefinitely; the MCU detects that condition.
 - Physical-gimbal verification captured 1,000/1,000 valid rows and confirmed
   Mode 2: right-horizontal CH1, right-vertical CH2, left-vertical CH3, and
-  left-horizontal CH4. All rows were disarmed, failsafe-free, mask 31, and had
-  zero rejected CH1-CH4 pulses.
+  left-horizontal CH4. All rows were disarmed and failsafe-free with zero
+  rejected CH1-CH4 pulses. Observed mask 31 did not prove CH5 health: A12 was
+  physically floating and likely coupled to an adjacent PWM signal.
