@@ -92,3 +92,6 @@ aircraft's measured scale weight before flight.
 
 - RX health after timestamp-race fix: 427/427 rows reported alive mask 15,
   zero failsafe rows, and zero rejected pulses on CH1-CH4.
+- Transmitter-off test: the FS-R6B stopped refreshing flight-channel PWM.
+  Firmware transitioned from mask 15 through one staggered mask-8 row to mask
+  0, asserted failsafe, and retained failsafe for all remaining 579 rows.

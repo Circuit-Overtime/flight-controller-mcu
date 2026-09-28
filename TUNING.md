@@ -121,5 +121,8 @@ The logs must establish all of the following before changing PID gains:
 6. Control-loop timing remains close to 5000 us without large periodic stalls.
 7. Receiver loss produces a disarm after the configured 250 ms validity window.
 
+Normal RX continuity and transmitter-loss detection have passed on the current
+hardware. An armed, prop-off loss test remains a later physical-output check.
+
 Only after these gates pass should motor-on response tests be designed. Never
 run a propeller-equipped vibration or PID test on a loose indoor airframe.

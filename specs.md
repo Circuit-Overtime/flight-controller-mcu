@@ -293,7 +293,8 @@ Use `simulator/capture_telemetry.py` and follow `TUNING.md` to collect:
 5. Verify the centre of gravity with the complete aircraft.
 6. Measure actual all-up mass.
 7. Review all four required prop-off logs.
-8. Confirm that transmitter loss is detectable and causes disarm.
+8. Transmitter-loss detection is verified. Repeat an armed prop-off loss test
+   later to observe the physical disarm transition under armed state.
 9. Perform motor-correction tests with propellers removed: the motors on the
    physically lowered side must receive more command.
 10. Establish thrust margin and hover throttle before attempting PID tuning in
@@ -311,6 +312,10 @@ capture produced:
 - zero rejected pulses on CH1-CH4;
 - 5054 us mean control-loop interval.
 
-This verifies the A8-A11 mapping and normal receiver health. A separate
-transmitter-off capture is still required to verify the receiver's link-loss
-behavior.
+This verifies the A8-A11 mapping and normal receiver health.
+
+A subsequent transmitter-off capture showed 702 healthy rows at alive mask 15,
+one staggered-expiry row at mask 8, then 579 consecutive rows at mask 0 with
+failsafe asserted. No pulses were rejected. The raw values remained frozen at
+their last valid measurements while their timestamps expired, confirming that
+the FS-R6B stops refreshing usable PWM and the firmware detects link loss.
