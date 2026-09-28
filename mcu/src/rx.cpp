@@ -63,12 +63,17 @@ uint16_t rxGet(uint8_t ch) {
   return v;
 }
 
-bool rxAlive(uint8_t ch, uint32_t now_us) {
+bool rxAlive(uint8_t ch) {
   if (ch >= RX_NUM_CHANNELS) return false;
+  // Snapshot the ISR-owned timestamp first, then obtain the current time.
+  // Reading them in the opposite order lets an interrupt publish a timestamp
+  // newer than the caller's stale 'now', making unsigned age arithmetic wrap
+  // and falsely report a freshly updated channel as dead.
   uint8_t s = SREG; cli();
   uint32_t last = rx_last_update[ch];
   SREG = s;
   if (last == 0) return false;
+  uint32_t now_us = micros();
   return (now_us - last) < RX_ALIVE_TIMEOUT_US;
 }
 

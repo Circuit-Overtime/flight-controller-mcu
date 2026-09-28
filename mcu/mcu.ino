@@ -318,8 +318,8 @@ void loop() {
   ledsUpdate(now_ms);
 
   // ---- Flight controller tick ---------------------------------------------
-    bool failsafe = !rxAlive(0, now_us) || !rxAlive(1, now_us) ||
-                    !rxAlive(2, now_us) || !rxAlive(3, now_us);
+    bool failsafe = !rxAlive(0) || !rxAlive(1) ||
+                    !rxAlive(2) || !rxAlive(3);
 
     // STARTUP led flashes on failsafe (RX silent on a flight-critical
     // channel) — the system is alive but can't be flown safely.
@@ -437,7 +437,7 @@ void loop() {
     }
     uint8_t alive_mask = 0;
     for (uint8_t ch = 0; ch < RX_NUM_CHANNELS; ch++) {
-      if (rxAlive(ch, now_us)) alive_mask |= (uint8_t)(1U << ch);
+      if (rxAlive(ch)) alive_mask |= (uint8_t)(1U << ch);
     }
     Serial.print(alive_mask); Serial.print(',');
     Serial.print(rxRejected(0)); Serial.print(',');
