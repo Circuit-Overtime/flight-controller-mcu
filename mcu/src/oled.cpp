@@ -9,6 +9,7 @@
 
 static uint8_t framebuffer[OLED_WIDTH * OLED_PAGES];
 static bool available = false;
+static uint8_t active_address = 0;
 static bool dirty = false;
 static uint8_t tx_page = 0;
 static uint8_t tx_column = 0;
@@ -78,7 +79,7 @@ static void drawText(uint8_t row, const char *text) {
 
 static bool sendCommands(const uint8_t *commands, uint8_t count) {
   Wire.clearWireTimeoutFlag();
-  Wire.beginTransmission(OLED_I2C_ADDR);
+  Wire.beginTransmission(active_address);
   Wire.write((uint8_t)0x00);
   for (uint8_t i = 0; i < count; i++) Wire.write(commands[i]);
   uint8_t status = Wire.endTransmission();
@@ -100,7 +101,7 @@ static bool sendChunk(uint8_t page, uint8_t column, uint8_t count) {
   if (!sendCommands(position, sizeof(position))) return false;
 
   Wire.clearWireTimeoutFlag();
-  Wire.beginTransmission(OLED_I2C_ADDR);
+  Wire.beginTransmission(active_address);
   Wire.write((uint8_t)0x40);
   uint16_t offset = (uint16_t)page * OLED_WIDTH + column;
   for (uint8_t i = 0; i < count; i++) Wire.write(framebuffer[offset + i]);
@@ -128,10 +129,20 @@ static void flushBlocking() {
 }
 
 bool oledInit() {
-  Wire.clearWireTimeoutFlag();
-  Wire.beginTransmission(OLED_I2C_ADDR);
-  available = (Wire.endTransmission() == 0 && !Wire.getWireTimeoutFlag());
-  Wire.clearWireTimeoutFlag();
+  const uint8_t candidates[] = {OLED_I2C_ADDR, OLED_I2C_ALT_ADDR};
+  available = false;
+  active_address = 0;
+  for (uint8_t i = 0; i < sizeof(candidates); i++) {
+    Wire.clearWireTimeoutFlag();
+    Wire.beginTransmission(candidates[i]);
+    bool acknowledged = (Wire.endTransmission() == 0 && !Wire.getWireTimeoutFlag());
+    Wire.clearWireTimeoutFlag();
+    if (acknowledged) {
+      active_address = candidates[i];
+      available = true;
+      break;
+    }
+  }
   if (!available) return false;
 
   const uint8_t init_sequence[] = {
@@ -150,11 +161,17 @@ bool oledPresent() {
   return available;
 }
 
+uint8_t oledAddress() {
+  return active_address;
+}
+
 void oledShowBoot(OledBootStage stage) {
   if (!available) return;
   clearFrame();
+  char identity[22];
+  snprintf(identity, sizeof(identity), "OLED 0X%02X ONLINE", active_address);
   drawText(0, "FLIGHT CONTROLLER");
-  drawText(2, "OLED 0X3C ONLINE");
+  drawText(2, identity);
   switch (stage) {
     case OLED_BOOT_START: drawText(4, "BOOT START"); break;
     case OLED_BOOT_ESC:   drawText(4, "ESC INITIALIZE"); break;

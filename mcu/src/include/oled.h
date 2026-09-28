@@ -15,6 +15,7 @@ enum OledBootStage : uint8_t {
 
 bool oledInit();
 bool oledPresent();
+uint8_t oledAddress();
 void oledShowBoot(OledBootStage stage);
 void oledQueueLive(bool armed, bool failsafe, bool battery_low,
                    float battery_v, const uint16_t rx_us[6],

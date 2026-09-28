@@ -36,9 +36,11 @@
 // ---- OLED: 0.96-inch SSD1306-compatible display on the shared I2C bus -----
 // The display is wired in parallel with the MPU6050: SDA=20 and SCL=21.
 #define OLED_I2C_ADDR           0x3C
+#define OLED_I2C_ALT_ADDR       0x3D     // fallback used by some address straps
 #define OLED_WIDTH              128
 #define OLED_PAGES              8        // 64 pixels high / 8 pixels per page
 #define OLED_COLUMN_OFFSET      0        // SSD1306; SH1106 modules usually need 2
+#define OLED_POWERUP_MS         100UL    // allow display controller to become ready
 #define OLED_REFRESH_MS         500UL    // rebuild the live screen at 2 Hz
 #define OLED_TX_CHUNK           24       // bounded transfer below Wire's buffer
 

@@ -174,7 +174,7 @@ The BMP180 is not connected for first flight.
 | --- | --- |
 | Module | 0.96-inch SSD1306-compatible OLED, 128 x 64 |
 | Interface | Shared I2C bus at 400 kHz |
-| Address | 0x3C |
+| Address | 0x3C expected; 0x3D fallback is probed automatically |
 | Wiring | SDA to Mega 20; SCL to Mega 21, in parallel with MPU6050 |
 | Live refresh | 2 Hz framebuffer rebuild with 24-byte incremental transfers |
 
@@ -184,7 +184,9 @@ sensed battery voltage and low-voltage state, X/Y/Z gyro rates, and MPU6050
 temperature. Display transfers occur only after a completed flight-control
 calculation and are split into bounded chunks; no complete 1024-byte frame is
 sent as one blocking I2C transaction. If address 0x3C does not acknowledge at
-boot, display output disables itself without preventing flight-controller boot.
+boot, the fallback address 0x3D is tried. If neither address acknowledges,
+display output disables itself without preventing flight-controller boot and a
+serial diagnostic records the failed probe.
 
 ### FlySky FS-CT6B transmitter and FS-R6B receiver
 

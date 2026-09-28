@@ -187,8 +187,15 @@ void setup() {
   Wire.setWireTimeout(MPU_I2C_TIMEOUT_US, true);
   Wire.setClock(MPU_I2C_CLOCK);
 
-  oledInit();
-  oledShowBoot(OLED_BOOT_START);
+  delay(OLED_POWERUP_MS);
+  bool oled_found = oledInit();
+  if (oled_found) {
+    Serial.print(F("# OLED detected at 0x"));
+    Serial.println(oledAddress(), HEX);
+    oledShowBoot(OLED_BOOT_START);
+  } else {
+    Serial.println(F("# OLED not found at 0x3C or 0x3D - display disabled"));
+  }
 
   mpuWrite(REG_PWR_MGMT, 0x00);                    // wake
   delay(50);
