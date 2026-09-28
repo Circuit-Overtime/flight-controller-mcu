@@ -106,6 +106,19 @@ return to SAFE, requires the selected auxiliary channel to remain alive in
 every row, and rejects a capture in which a primary stick moved. Firmware must
 retain the current disarmed behavior until this capture is reviewed.
 
+For the proposed two-switch state machine, connect CH5 signal to A12 and CH6
+signal to A13, then measure all four SWB/SWA combinations in Gray-code order:
+
+```bash
+python simulator/guided_rx_capture.py /dev/ttyACM0 460800 100 \
+  logs/aux-switch-matrix.csv --aux-matrix
+```
+
+The prompts capture `00 -> 01 -> 11 -> 10 -> 00`, moving only one switch at a
+time. The result is accepted only if SWA and SWB independently control CH5 and
+CH6, both AUX signals remain alive, the effects do not depend on the other
+switch, both channels return to their initial values, and CH1-CH4 remain still.
+
 ## Guided IMU alignment capture
 
 After receiver health passes, capture the real MPU mounting and axis signs:

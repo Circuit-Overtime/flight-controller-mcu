@@ -131,6 +131,29 @@ ARM_SWITCH_PHASES = (
     ),
 )
 
+AUX_MATRIX_PHASES = (
+    (
+        "aux_00_start",
+        "Set SWB=0 and SWA=0. Keep throttle LOWEST and all other sticks centered.",
+    ),
+    (
+        "aux_01",
+        "Set SWB=0 and SWA=1. Move only SWA; keep every other control unchanged.",
+    ),
+    (
+        "aux_11",
+        "Set SWB=1 and SWA=1. Move only SWB; keep every other control unchanged.",
+    ),
+    (
+        "aux_10",
+        "Set SWB=1 and SWA=0. Move only SWA; keep every other control unchanged.",
+    ),
+    (
+        "aux_00_end",
+        "Return to SWB=0 and SWA=0 by moving only SWB; keep all sticks centered.",
+    ),
+)
+
 RAW_CHANNELS = ("raw_ch1", "raw_ch2", "raw_ch3", "raw_ch4")
 AUX_CHANNELS = ("raw_ch5", "raw_ch6")
 
@@ -332,6 +355,96 @@ def print_arm_switch_result(
         )
 
 
+def print_aux_matrix_result(
+    header: list[str], phase_rows: dict[str, list[list[str]]]
+) -> None:
+    channels = (*RAW_CHANNELS, *AUX_CHANNELS)
+    indices = {name: header.index(name) for name in channels}
+
+    def mean(phase: str, channel: str) -> float:
+        index = indices[channel]
+        return statistics.mean(float(row[index]) for row in phase_rows[phase])
+
+    print("\nSWB/SWA auxiliary matrix:")
+    for phase, label in (
+        ("aux_00_start", "00 start"),
+        ("aux_01", "01"),
+        ("aux_11", "11"),
+        ("aux_10", "10"),
+        ("aux_00_end", "00 end"),
+    ):
+        print(
+            f"  {label}: CH5={mean(phase, 'raw_ch5'):.1f} us, "
+            f"CH6={mean(phase, 'raw_ch6'):.1f} us"
+        )
+
+    effects: dict[str, dict[str, tuple[float, float]]] = {"SWA": {}, "SWB": {}}
+    for channel in AUX_CHANNELS:
+        effects["SWA"][channel] = (
+            mean("aux_01", channel) - mean("aux_00_start", channel),
+            mean("aux_11", channel) - mean("aux_10", channel),
+        )
+        effects["SWB"][channel] = (
+            mean("aux_10", channel) - mean("aux_00_start", channel),
+            mean("aux_11", channel) - mean("aux_01", channel),
+        )
+
+    detected: dict[str, str] = {}
+    consistent = True
+    strong = True
+    for switch in ("SWA", "SWB"):
+        average_effect = {
+            channel: statistics.mean(effects[switch][channel])
+            for channel in AUX_CHANNELS
+        }
+        channel = max(AUX_CHANNELS, key=lambda name: abs(average_effect[name]))
+        first, second = effects[switch][channel]
+        detected[switch] = channel
+        if abs(average_effect[channel]) < 200.0:
+            strong = False
+        if abs(first - second) > 100.0:
+            consistent = False
+        print(
+            f"  {switch}: {channel.replace('raw_', '').upper()}, "
+            f"effects {first:+.1f}/{second:+.1f} us"
+        )
+
+    mask_index = header.index("rx_alive_mask")
+    all_rows = [row for rows in phase_rows.values() for row in rows]
+    aux_alive_rows = sum(
+        (int(float(row[mask_index])) & 0x30) == 0x30 for row in all_rows
+    )
+    primary_drift = max(
+        abs(mean(phase, channel) - mean("aux_00_start", channel))
+        for phase in ("aux_01", "aux_11", "aux_10", "aux_00_end")
+        for channel in RAW_CHANNELS
+    )
+    return_error = max(
+        abs(mean("aux_00_end", channel) - mean("aux_00_start", channel))
+        for channel in AUX_CHANNELS
+    )
+    print(f"  CH5+CH6 alive: {aux_alive_rows}/{len(all_rows)} rows")
+
+    if aux_alive_rows != len(all_rows):
+        print("RESULT: Rejected; CH5 or CH6 became stale during the matrix.")
+    elif not strong:
+        print("RESULT: Inconclusive; one switch did not move an AUX channel by 200 us.")
+    elif len(set(detected.values())) != 2:
+        print("RESULT: Rejected; SWA and SWB do not independently control CH5 and CH6.")
+    elif not consistent:
+        print("RESULT: Rejected; a switch effect changed with the other switch position.")
+    elif return_error > 50.0:
+        print("RESULT: Rejected; the final 00 AUX values did not return repeatably.")
+    elif primary_drift > 50.0:
+        print("RESULT: Rejected; a primary flight stick moved during the matrix.")
+    else:
+        print(
+            "RESULT: Independent two-switch matrix confirmed: "
+            f"SWA->{detected['SWA'].replace('raw_', '').upper()}, "
+            f"SWB->{detected['SWB'].replace('raw_', '').upper()}."
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("port", nargs="?", default="/dev/ttyACM0")
@@ -351,6 +464,11 @@ def main() -> int:
         action="store_true",
         help="capture SAFE/ARM/SAFE positions and identify the auxiliary channel",
     )
+    mode_group.add_argument(
+        "--aux-matrix",
+        action="store_true",
+        help="capture SWB/SWA states 00, 01, 11, 10, 00 and map CH5/CH6",
+    )
     args = parser.parse_args()
     if args.samples < 2:
         parser.error("samples must be at least 2")
@@ -360,6 +478,8 @@ def main() -> int:
         phases = PHYSICAL_LAYOUT_PHASES
     elif args.arm_switch:
         phases = ARM_SWITCH_PHASES
+    elif args.aux_matrix:
+        phases = AUX_MATRIX_PHASES
     else:
         phases = PHASES
     print("PROPELLERS MUST BE REMOVED.")
@@ -405,7 +525,7 @@ def main() -> int:
                 print(f"Captured exactly {len(rows)} fresh samples.")
                 summary_channels = (
                     (*RAW_CHANNELS, *AUX_CHANNELS)
-                    if args.arm_switch
+                    if args.arm_switch or args.aux_matrix
                     else RAW_CHANNELS
                 )
                 print_phase_summary(header, rows, summary_channels)
@@ -414,6 +534,8 @@ def main() -> int:
                 print_physical_layout_result(header, captured_by_phase)
             elif args.arm_switch:
                 print_arm_switch_result(header, captured_by_phase)
+            elif args.aux_matrix:
+                print_aux_matrix_result(header, captured_by_phase)
     except KeyboardInterrupt:
         print("\nCapture cancelled; completed phases remain in the output file.")
         return 130
